@@ -23,13 +23,13 @@ def send_password_reset_email(to_email: str, user_name: str, reset_token: str, r
     reset_link = f"{reset_base_url.rstrip('/')}/reset-password?token={reset_token}"
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = "Recuperação de Senha — Catálogo de Filmes Tom Hanks"
+    msg["Subject"] = "Recuperação de Senha — CuidaHome"
     msg["From"] = smtp_from
     msg["To"] = to_email
 
     text_content = f"""Olá, {user_name}!
 
-Você solicitou a redefinição de senha para sua conta no Catálogo de Filmes Tom Hanks.
+Você solicitou a redefinição de senha para sua conta na plataforma CuidaHome.
 
 Para cadastrar uma nova senha, utilize o link abaixo:
 {reset_link}
@@ -60,7 +60,7 @@ Se você não solicitou esta alteração, desconsidere este e-mail.
     <body>
         <div class="container">
             <div class="header">
-                <h1>🎬 Catálogo Tom Hanks</h1>
+                <h1>🩺 CuidaHome</h1>
             </div>
             <div class="content">
                 <p>Olá, <strong>{user_name}</strong>,</p>

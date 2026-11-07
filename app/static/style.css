@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════
-   Catálogo de Filmes — Tom Hanks  ·  Design System
+   CuidaHome — Saúde & Atendimento Domiciliar · Design System
    ══════════════════════════════════════════════════════════ */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
@@ -1120,6 +1120,30 @@ body::before {
     background: rgba(124, 92, 252, 0.2);
     color: var(--accent-primary);
     border: 1px solid rgba(124, 92, 252, 0.3);
+}
+
+.badge-admin {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.badge-prof {
+    background: rgba(16, 185, 129, 0.2);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.badge-forn {
+    background: rgba(245, 158, 11, 0.2);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.badge-family {
+    background: rgba(6, 182, 212, 0.2);
+    color: #06b6d4;
+    border: 1px solid rgba(6, 182, 212, 0.4);
 }
 
 .comment-text {

@@ -45,8 +45,8 @@ def create_premium_checkout_session(
                 "price_data": {
                     "currency": "brl",
                     "product_data": {
-                        "name": "Plano Premium — Catálogo Tom Hanks",
-                        "description": "Favoritos ilimitados, selo VIP no perfil e acesso antecipado a novos recursos.",
+                        "name": "Locação de Equipamentos — CuidaHome",
+                        "description": "Assinatura mensal recorrente para locação ortopédica/hospitalar.",
                     },
                     "unit_amount": 1990,  # R$ 19,90 / mês
                     "recurring": {

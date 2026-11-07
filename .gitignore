@@ -8,5 +8,7 @@ build/
 .venv/
 venv/
 slides/
+backups/
+.pytest_cache/
 take_screenshots.py
 take_screenshots.spec

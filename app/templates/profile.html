@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Perfil de {{ profile_user.nome }} — Catálogo Tom Hanks{% endblock %}
+{% block title %}Perfil de {{ profile_user.nome }} — CuidaHome{% endblock %}
 
 {% block content %}
 <style>
@@ -383,34 +383,30 @@
 </div>
 {% endif %}
 
-<!-- Filmes favoritados -->
+<!-- Itens e profissionais favoritados -->
 <div class="section-header" style="margin-top: 1.5rem;">
-  <h2>⭐ Filmes Favoritados</h2>
-  <span class="stats-badge" style="font-size:0.85rem;">{{ favorites|length }} filme{{ 's' if favorites|length != 1 else '' }}</span>
+  <h2>⭐ Favoritos Salvos</h2>
+  <span class="stats-badge" style="font-size:0.85rem;">{{ favorites|length }} item{{ 's' if favorites|length != 1 else '' }}</span>
 </div>
 
 {% if favorites %}
 <div class="profile-favorites-grid">
   {% for fav in favorites %}
-  <a href="/movie/{{ fav.tmdb_movie_id }}" class="profile-fav-card">
-    {% if fav.poster_path %}
-    <img class="profile-fav-poster" src="{{ fav.poster_path }}" alt="{{ fav.titulo }}" loading="lazy">
-    {% else %}
-    <div class="profile-fav-poster-placeholder">🎬</div>
-    {% endif %}
-    <div class="profile-fav-title" title="{{ fav.titulo }}">{{ fav.titulo }}</div>
-  </a>
+  <div class="profile-fav-card">
+    <div class="profile-fav-poster-placeholder">🩺</div>
+    <div class="profile-fav-title">{{ fav.nome or 'Item salvo' }}</div>
+  </div>
   {% endfor %}
 </div>
 {% else %}
 <div class="empty-state" style="max-width:860px; margin: 0 auto;">
   <div class="icon">⭐</div>
-  <h3>Nenhum favorito ainda</h3>
+  <h3>Nenhum favorito salvo ainda</h3>
   {% if is_own_profile %}
-  <p>Explore o catálogo e favorite seus filmes preferidos!</p>
-  <a href="/catalog" class="btn btn-primary">🎬 Ir para o Catálogo</a>
+  <p>Explore o catálogo de equipamentos e mural de plantonistas!</p>
+  <a href="/equipamentos" class="btn btn-primary">🩺 Ver Equipamentos</a>
   {% else %}
-  <p>Este usuário ainda não favoritou nenhum filme.</p>
+  <p>Este usuário ainda não possui itens favoritados.</p>
   {% endif %}
 </div>
 {% endif %}

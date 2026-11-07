@@ -1,3 +1,9 @@
+"""
+Módulo de conexão e verificação passiva do MariaDB — Catalog Service.
+A gestão e aplicação de DDL/schema é delegada exclusivamente ao runner:
+    python -m db.migrate
+"""
+
 import os
 import mysql.connector
 from mysql.connector import Error
@@ -10,114 +16,30 @@ def get_connection():
         port=int(os.getenv("DB_PORT", "3306")),
         user=os.getenv("DB_USER", "root"),
         password=os.getenv("DB_PASSWORD", ""),
-        database=os.getenv("DB_NAME", "catalogo_filmes"),
+        database=os.getenv("DB_NAME", "saude_domiciliar"),
     )
 
 
 def init_db():
-    """Cria as tabelas necessárias caso não existam e aplica migrações de schema."""
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    # 1. Tabela de Usuários com controle de role
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS usuarios (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            nome VARCHAR(100) NOT NULL,
-            email VARCHAR(150) UNIQUE NOT NULL,
-            senha_hash VARCHAR(255) NOT NULL,
-            role VARCHAR(20) NOT NULL DEFAULT 'user',
-            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-
-    # Migração segura: garante que a coluna 'role' exista se a tabela já foi criada anteriormente
+    """
+    Verificação passiva de prontidão do banco de dados na inicialização do serviço.
+    Não executa comandos DDL imperativos (CREATE/ALTER TABLE).
+    """
     try:
-        cursor.execute("SHOW COLUMNS FROM usuarios LIKE 'role'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE usuarios ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'user'")
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SHOW TABLES LIKE 'schema_migrations'")
+        has_migrations_table = cursor.fetchone() is not None
+
+        if has_migrations_table:
+            cursor.execute("SELECT versao FROM schema_migrations ORDER BY versao DESC LIMIT 1")
+            row = cursor.fetchone()
+            ultima_versao = row["versao"] if row else "nenhuma"
+            print(f"[CatalogService] Conexão com MariaDB estabelecida. Última migration aplicada: {ultima_versao}")
+        else:
+            print("[CatalogService] AVISO: Tabela 'schema_migrations' não encontrada. Execute: python -m db.migrate")
+
+        cursor.close()
+        conn.close()
     except Exception as e:
-        print(f"Aviso ao verificar/adicionar coluna role: {e}")
-
-    # Migração segura (Atividade 6): garante que a coluna 'bio' exista
-    try:
-        cursor.execute("SHOW COLUMNS FROM usuarios LIKE 'bio'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE usuarios ADD COLUMN bio TEXT")
-    except Exception as e:
-        print(f"Aviso ao verificar/adicionar coluna bio: {e}")
-
-    # Migração segura (Atividade 6): garante que a coluna 'avatar_key' exista.
-    # Armazena APENAS a chave do objeto no MinIO (ex: "avatars/42-1727123456-abc.jpg").
-    # NUNCA armazena o binário da imagem no banco de dados.
-    try:
-        cursor.execute("SHOW COLUMNS FROM usuarios LIKE 'avatar_key'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE usuarios ADD COLUMN avatar_key VARCHAR(512)")
-    except Exception as e:
-        print(f"Aviso ao verificar/adicionar coluna avatar_key: {e}")
-
-    # Migrações seguras (Atividade 7 - Stripe Premium):
-    try:
-        cursor.execute("SHOW COLUMNS FROM usuarios LIKE 'premium'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE usuarios ADD COLUMN premium BOOLEAN NOT NULL DEFAULT FALSE")
-    except Exception as e:
-        print(f"Aviso ao verificar/adicionar coluna premium: {e}")
-
-    try:
-        cursor.execute("SHOW COLUMNS FROM usuarios LIKE 'stripe_customer_id'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE usuarios ADD COLUMN stripe_customer_id VARCHAR(255)")
-    except Exception as e:
-        print(f"Aviso ao verificar/adicionar coluna stripe_customer_id: {e}")
-
-    try:
-        cursor.execute("SHOW COLUMNS FROM usuarios LIKE 'stripe_subscription_id'")
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE usuarios ADD COLUMN stripe_subscription_id VARCHAR(255)")
-    except Exception as e:
-        print(f"Aviso ao verificar/adicionar coluna stripe_subscription_id: {e}")
-
-    # 2. Tabela de Tokens para Reset de Senha (expiração e controle de uso)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS reset_tokens (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            usuario_id INT NOT NULL,
-            token VARCHAR(255) UNIQUE NOT NULL,
-            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            expira_em DATETIME NOT NULL,
-            usado BOOLEAN NOT NULL DEFAULT FALSE,
-            FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
-        )
-    """)
-
-    # 3. Tabela de Favoritos
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS favoritos (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            usuario_id INT NOT NULL,
-            tmdb_movie_id INT NOT NULL,
-            titulo VARCHAR(255) NOT NULL,
-            poster_path VARCHAR(255),
-            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
-            UNIQUE (usuario_id, tmdb_movie_id)
-        )
-    """)
-
-    # 4. Tabela de Comentários
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS comentarios (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            usuario_id INT NOT NULL,
-            tmdb_movie_id INT NOT NULL,
-            texto TEXT NOT NULL,
-            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
-        )
-    """)
-
-    conn.commit()
-    cursor.close()
-    conn.close()
+        print(f"[CatalogService] Aviso ao verificar banco de dados na inicialização: {e}")

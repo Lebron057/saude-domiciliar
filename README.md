@@ -1,408 +1,189 @@
-# 🎬 Catálogo de Filmes — Tom Hanks (Arquitetura de Microsserviços)
+# CuidaHome — Saúde & Atendimento Domiciliar
 
-> 📖 **Documentação Técnica Completa:** Acesse o arquivo [DOCUMENTACAO.md](DOCUMENTACAO.md) para a especificação funcional detalhada de engenharia reversa, diagramas de arquitetura Mermaid, catálogo completo de regras de negócio ("Se X, Então Y") e modelagem conceitual/lógica do banco de dados.
-
-Aplicação web desenvolvida em arquitetura de microsserviços com Python (FastAPI) e Docker. Permite explorar a filmografia de Tom Hanks ao vivo da API TMDB, favoritar filmes, comentar, controlar papéis de acesso (RBAC), redefinir senhas com envio de e-mails via Mailtrap, registrar logs de auditoria centralizados com Redis Streams, e gerenciar um **perfil de usuário com foto e biografia** armazenadas no **MinIO** (Object Storage), além de cobrança recorrente via **Stripe**.
-
-- **Disciplina:** Introdução à Computação em Nuvem (ISW055)
-- **Professor:** [@siriani](https://github.com/siriani)
-- **Aluno:** Iago Amorim Lebron de Lima
-- **Identificador de Tenant:** `IAC_2026_02_iago_lima`
-- **Porta Reservada no Host:** `8210`
-- **Subdomínio de Borda:** `iago-lima.lapps.studio`
+> **Disciplina:** Introdução à Computação em Nuvem (ISW055) — 2026.2  
+> **Docente:** Prof. Allan Siriani ([github.com/siriani](https://github.com/siriani) / `@siriani`)  
+> **Aluno:** Iago Amorim Lebron de Lima (RA: 2591612513019)  
+> **Repositório de Origem (Evidência P1):** [github.com/Lebron057/tom-hanks-avestruz](https://github.com/Lebron057/tom-hanks-avestruz)  
+> **Repositório Atual (SaaS / Atividade 9):** [github.com/Lebron057/saude-domiciliar](https://github.com/Lebron057/saude-domiciliar)  
+> **Subdomínio Público (Portainer):** [https://iago-lima-isw055.lapps.studio](https://iago-lima-isw055.lapps.studio) (Porta `8210`)
 
 ---
 
-## 🏛️ Arquitetura de Microsserviços
+## 1. Nome e Frase de Impacto
 
-A aplicação foi decomposta em três serviços independentes interconectados via rede privada Docker, mais um Redis para persistência de eventos:
+* **Nome do Produto:** **CuidaHome** (*Saúde & Atendimento Domiciliar*)
+* **Frase:** *Plataforma integrada de plantões de cuidadores/enfermagem sob demanda e locação desburocratizada de equipamentos hospitalares para recuperação domiciliar.*
+
+---
+
+## 2. A Dor
+
+* **Quem sofre:** Familiares de idosos, responsáveis por pacientes pós-alta cirúrgica e pacientes em recuperação temporária que necessitam de cuidados assistenciais ou suporte ortopédico imediato.
+* **Quando:** Imediatamente após uma alta hospitalar inesperada, no desfalque súbito de um cuidador habitual durante finais de semana/feriados ou após traumas ortopédicos graves (ex: fraturas de fêmur, cirurgias de joelho).
+* **Quanto custa hoje:** 
+  * Risco severo de reinternação hospitalar por assistência inadequada.
+  * Perda de dias úteis e produtividade de familiares dedicados ao cuidado informal.
+  * Desembolso de R\$ 2.000,00 a R\$ 5.000,00 na aquisição de camas hospitalares ou cadeiras de rodas que serão utilizadas por apenas 60 a 90 dias.
+  * Horas de estresse em grupos de WhatsApp sem qualquer garantia técnica, validação de certidões ou amparo jurídico.
+* **Como resolvem hoje:** Grupos informais de WhatsApp e redes sociais, indicações boca a boca de vizinhos e lojas físicas especializadas em locação ortopédica que impõem burocracias arcaicas (exigência de fiador, promissórias ou cauções presenciais em dinheiro/cheque).
+
+---
+
+## 3. Persona
+
+* **Nome:** Mariana Lopes, 43 anos, bancária e mãe.
+* **Rotina e Obstáculo:** A mãe de Mariana (Dona Helena, 78 anos) sofreu uma queda em casa e passou por cirurgia de urgência no fêmur. Recebeu alta hospitalar de surpresa na sexta-feira à tarde. Mariana trabalha em horário integral, reside em outra localidade e precisa contratar com extrema urgência cuidadores/técnicos de enfermagem certificados para plantões noturnos e de fins de semana, além de providenciar uma cama hospitalar articulada e uma cadeira de rodas adaptada para a mesma semana. Enfrenta a lentidão das lojas tradicionais de locação e o pânico de colocar pessoas desconhecidas sem antecedentes ou qualificação verificada dentro da residência da mãe.
+
+---
+
+## 4. Concorrentes e Alternativas
+
+1. **Grupos de WhatsApp e Classificados Informais:**
+   * *Limitações:* Ausência absoluta de triagem de antecedentes criminais ou verificação ativa de registros profissionais (COREN); elevado índice de cancelamento de última hora e pagamentos sem emissão de comprovantes fiscais ou respaldo jurídico.
+2. **Lojas Físicas Tradicionais de Locação Ortopédica:**
+   * *Limitações:* Obrigatoriedade de deslocamento presencial no horário comercial, processos analógicos com assinatura física de contratos, exigência abusiva de fiadores ou cauções em dinheiro/cheque e falta de entrega/recolhimento ágil em domicílio.
+3. **Agências Tradicionais de Home Care:**
+   * *Limitações:* Foco predominante em contratos de alta complexidade contínua e planos de saúde corporativos; rigidez de contratação, custos exorbitantes de intermediação e nenhuma flexibilidade para plantões avulsos de curta duração ou demandas pontuais de fim de semana.
+
+---
+
+## 5. Proposta de Valor
+
+> **Conectamos famílias a cuidadores certificados em minutos e entregamos equipamentos ortopédicos por assinatura flexível e sem caução burocrática.**
+
+Garantimos validação prévia de credenciais (diplomas e COREN), agilidade no atendimento emergencial (mural sob demanda), facilidade de contratação via Stripe Checkout em poucos cliques e entrega/recolhimento ágil de equipamentos médicos no domicílio do paciente.
+
+---
+
+## 6. Modelo de Receita com Stripe
+
+A plataforma opera com duas linhas de monetização complementares, integradas ao Stripe em modo de teste:
+
+1. **Intermediação de Plantões (Take Rate):**
+   * Cobrança avulsa realizada através do Stripe Checkout (`mode=payment`) no fechamento do plantão.
+   * Retenção de taxa de intermediação de **12%** a **15%** (configurada via `PLATFORM_FEE_PERCENT`) sobre a diária acordada com o profissional, direcionando o saldo líquido para o ledger financeiro de repasses do prestador.
+2. **Plano Recorrente de Locação de Equipamentos (Stripe Billing):**
+   * Assinatura mensal automatizada via Stripe Billing (`mode=subscription`): ex: R\$ 149,00/mês para cadeira de rodas padrão; R\$ 290,00/mês para cama hospitalar articulada.
+   * Faturamento renovado a cada ciclo de 30 dias até a solicitação de devolução pelo cliente.
+   * **Garantia Patrimonial:** Pré-autorização temporária de caução no cartão do cliente (`capture_method=manual`) cobrindo o período de entrega e vistoria inicial, aliada à guarda do meio de pagamento seguro para cobranças de eventuais avarias contratuais na devolução.
+
+---
+
+## 7. Métricas de Sucesso
+
+| Métrica | Meta / Indicador | Finalidade |
+|---|---|---|
+| **MRR (Monthly Recurring Revenue)** | Crescimento contínuo de receita recorrente | Medir o volume e a expansão de assinaturas ativas de locação de equipamentos. |
+| **GMV & Take Rate** | Volume total transacionado e margem retida | Avaliar o montante bruto transacionado em plantões e a receita líquida retida pela intermediação (12–15%). |
+| **Tempo de Atendimento (Match Time)** | **< 2 horas** entre solicitação e match confirmado | Garantir a eficácia e a agilidade da plataforma em situações emergenciais pós-alta. |
+| **Retenção & Churn de Equipamentos** | Ciclo médio de **60 a 90 dias** com devolução programada | Acompanhar a permanência do paciente em recuperação sem retenção de itens inativos. |
+
+---
+
+## 8. Lean Canvas
+
+| Bloco | Aplicação no CuidaHome (`saude-domiciliar`) |
+| :--- | :--- |
+| **Problema** | 1. Dificuldade crítica de encontrar cuidadores e enfermagem de confiança para plantões pontuais ou emergenciais.<br>2. Burocracia excessiva, exigência de fiador/cheque e alto custo para locação de aparelhos ortopédicos por curtos períodos. |
+| **Segmentos de Clientes** | • Filhos e familiares responsáveis por idosos ou dependentes.<br>• Pacientes adultos em recuperação pós-cirúrgica ou pós-trauma temporário.<br>• Profissionais autônomos de enfermagem e cuidadores de idosos qualificados.<br>• Lojas fornecedoras de equipamentos ortopédicos. |
+| **Proposta Única de Valor** | Confiabilidade imediata em cuidadores verificados e aluguel de aparelhos médicos em poucos cliques, sem fiador nem cheque, com entrega domiciliar. |
+| **Solução** | 1. Plataforma web com cadastro e verificação ativa de credenciais de cuidadores/enfermeiros.<br>2. Catálogo virtual de locação mensal de equipamentos hospitalares.<br>3. Pagamentos e garantias 100% integrados via Stripe. |
+| **Canais** | Parcerias estratégicas com clínicas de fisioterapia e ortopedia, hospitais pós-alta, tráfego local patrocinado (Google Ads) e recomendações boca a boca. |
+| **Fontes de Receita** | • Taxa de intermediação (12% a 15%) sobre plantões de saúde intermediados.<br>• Assinaturas recorrentes mensais de locação de equipamentos (Stripe Billing). |
+| **Estrutura de Custos** | • Custos de infraestrutura de nuvem e servidores (Portainer/MariaDB/Redis/S3).<br>• Taxas de processamento financeiro (Stripe).<br>• Custos de checagem documental e certidões.<br>• Logística de transporte e higienização/revisão dos aparelhos. |
+| **Métricas-Chave** | Número de plantões realizados/mês, MRR de equipamentos, tempo médio de match (< 2h) e taxa de pontualidade/avaliação média (NPS). |
+| **Vantagem Injusta** | Rede de cuidadores e enfermeiros pré-credenciados localmente com checagem de conselho (COREN) e processo de locação 100% digital e desburocratizado. |
+
+---
+
+## 9. Mapa de Reaproveitamento de Arquitetura
+
+Conforme as diretrizes da disciplina, a infraestrutura, os microsserviços e as integrações originais foram 100% preservados e transpostos semanticamente para o novo domínio:
+
+| Componente Anterior | Destino no CuidaHome (`saude-domiciliar`) | Aplicação Técnica no Domínio de Saúde |
+|---|---|---|
+| **Catálogo de Filmes (TMDB API)** | **Catálogo de Equipamentos e Mural de Profissionais** | Catálogo persistido de aparelhos ortopédicos (cadeiras, camas) e mural de busca sob demanda de plantonistas certificados. |
+| **Login & RBAC (`auth-service`)** | **Matriz de Acesso RBAC Especializada** | 4 novos papéis: `admin`, `profissional_saude`, `familiar_paciente` e `fornecedor_equipamento`, com enforcement centralizado e proteção IDOR. |
+| **Logs de Auditoria (`log-service` + Redis)** | **Trilha de Auditoria e Eventos de Negócio** | Eventos estruturados em Redis Streams: `"plantao.solicitado"`, `"plantao.confirmado"`, `"equipamento.despachado"`, `"locacao.renovada"`. |
+| **Upload de Perfil (`garage`/MinIO S3)** | **Object Storage Especializado (4 Buckets)** | Buckets `avatars` (público), `equipamentos` (fotos públicas), `credenciais` (COREN/diplomas privados) e `documentos` (laudos/termos privados). |
+| **Plano Premium (Stripe)** | **Assinaturas Recorrentes & Cobrança de Plantões** | Cobrança mensal da locação ortopédica (Stripe Billing) com caução via pré-autorização e checkout de plantões avulsos com split de taxa. |
+| **Orquestração Docker & Portainer** | **Stack Portainer Multi-Tenant (Porta `8210`)** | Mesma stack Docker Compose na porta reservada `8210`, túnel reverso FRP, MariaDB individual e volumes persistentes preservados. |
+
+---
+
+## 10. Arquitetura Técnica e Microsserviços
 
 ```
-                  [ Navegador / Usuário ]
-                             │
-                             ▼ Porta pública (${APP_PORT:-8000})
-                    ┌─────────────────┐
-                    │ catalog-service │ ◄── (Ponto público: UI + TMDB + Favoritos)
-                    └────────┬────────┘
-                             │  Rede interna Docker (internal-net)
-                 ┌───────────┼───────────────────────────┐
-                 ▼           ▼                           ▼
-        ┌─────────────┐  ┌─────────────┐        ┌─────────────┐
-        │ auth-service│  │ log-service │        │    Redis    │
-        │ (Privado)   │  │ (Privado)   │──────► │  (Streams)  │
-        └──────┬──────┘  └─────────────┘        └─────────────┘
-               │              ▲
-       ┌───────┴──────┐       │ Eventos de auditoria
-       ▼              ▼       │ (login, logout, favoritar,
-  [ MariaDB ]   [ Mailtrap ]  │  comentar, moderar, 403)
+                     [ CLIENTES / INTERNET ]
+                                |
+                                v  HTTPS: https://iago-lima-isw055.lapps.studio
+             +---------------------------------------+
+             | GCP e2-micro (Always Free Relay FRP)  |
+             +------------------+--------------------+
+                                | Túnel TCP Reverso (Porta 8210)
+                                v
+====================================================================
+           AMBIENTE ON-PREMISES / PORTAINER (HOST DO ALUNO)
+====================================================================
+  +---------------------------------------------------------------+
+  |  catalog-service (FastAPI - Porta Pública: 8210)              |
+  |  - Landing Page, Catálogo Ortopédico, Mural de Plantões       |
+  |  - Proxies autenticados para S3 e Checkout Stripe             |
+  +--------+------------------+-------------------+---------------+
+           |                  |                   |
+           | HTTP             | HTTP              | S3 API (Porta 9000)
+           v (:8001)          v (:8002)           v
+  +-----------------+  +-----------------+  +---------------------+
+  |  auth-service   |  |   log-service   |  |   garage (MinIO S3) |
+  |  (FastAPI/JWT)  |  |   (FastAPI)     |  |   Buckets:          |
+  |  - RBAC 4 Roles |  +--------+--------+  |   - avatars         |
+  |  - Reset Senha  |           | Redis     |   - equipamentos    |
+  +--------+--------+           v (:6379)   |   - credenciais     |
+           |           +-----------------+  |   - documentos      |
+           |           |   redis:7       |  +----------+----------+
+           |           +-----------------+             |
+           | MariaDB (:3306)                           | Volumes Locais
+           v                                           v
+  +---------------------------------------------------------------+
+  |  MariaDB Compartilhado FATEC (Banco: IAC_2026_02_iago_lima)    |
+  |  - Tabelas de Saúde, Plantões, Locações, Ledger e Migrations  |
+  +---------------------------------------------------------------+
 ```
 
-### Serviços
-
-1. **`catalog-service` (Público)** — Porta `8000`:
-   - Único ponto de entrada exposto ao usuário.
-   - Serve as páginas SSR (Jinja2) e arquivos estáticos.
-   - Consome a API do TMDB em tempo real para catálogo de filmes.
-   - Gerencia a persistência de favoritos e comentários com segregação estrita por `usuario_id` no MariaDB.
-   - Repassa todas as requisições de login, registro e recuperação para o `auth-service`.
-   - **Dispara eventos de auditoria** para o `log-service` a cada ação relevante.
-   - **Expõe a rota `/admin/logs`** para consulta de logs (somente admin), repassando a chamada ao `log-service`.
-
-2. **`auth-service` (Privado)** — Porta `8001` (somente interna):
-   - Totalmente isolado (sem portas externas mapeadas).
-   - Gerencia cadastro, controle de papéis (`user` / `admin`) e login com hash `bcrypt` e JWT.
-   - Fluxo de **Esqueci minha senha**: geração de tokens seguros de 30 minutos em `reset_tokens`.
-   - Disparo real de e-mails formatados em HTML via SMTP Mailtrap.
-   - **Dispara evento de auditoria `login`** para o `log-service` após autenticação bem-sucedida.
-
-3. **`log-service` (Privado)** — Porta `8002` (somente interna):
-   - Microsserviço de auditoria centralizada.
-   - Recebe eventos via `POST /logs` de qualquer serviço e persiste no **Redis Stream** via `XADD`.
-   - Expõe `GET /logs` para consulta protegida por RBAC (somente admin, via JWT).
-   - `GET /health` para verificação de saúde.
-
-4. **`Redis`** — Porta `6379` (somente interna):
-   - Armazena eventos de auditoria em **Redis Streams** (`XADD`/`XREVRANGE`).
-   - Volume persistente (`redis-data`) para manter dados entre restarts.
-
-5. **`MinIO`** — Porta `9000` API (somente interna) / `9001` Console (pública opção):
-   - Object Storage compatível com S3 para armazenamento de fotos de perfil (avatares).
-   - O `catalog-service` é o único que escreve no bucket. As credenciais ficam apenas no servidor.
-   - O MinIO **não exposta a porta 9000 no host**. O `catalog-service` serve as imagens via proxy em `/storage/avatars/<filename>`.
-   - Volume persistente (`minio-data`) para manter as fotos entre restarts.
-
-### Fluxo de Eventos de Auditoria
-
-Toda ação relevante do sistema gera um evento HTTP `POST` para o `log-service`:
-
-| Evento | Disparado por | Descrição |
-|--------|:---:|------------|
-| `login` | `catalog-service` e `auth-service` | Autenticação bem-sucedida |
-| `logout` | `catalog-service` | Encerramento de sessão |
-| `favoritar` | `catalog-service` | Usuário favorita um filme |
-| `comentar` | `catalog-service` | Usuário adiciona comentário |
-| `remover_comentario_admin` | `catalog-service` | Admin remove comentário de outro usuário (moderação) |
-| `remover_comentario_proprio` | `catalog-service` | Usuário remove próprio comentário |
-| `perfil.atualizado` | `catalog-service` | Usuário atualizou bio e/ou foto de perfil |
-| `acesso_negado_403` | `catalog-service` | Tentativa de ação sem permissão (inclui editar perfil alheio) |
-| `audit.security.access_denied` | `catalog-service` | Tentativa específica de editar o perfil de outro usuário |
-
-**Importante:** O envio de logs é "best-effort" — falhas no `log-service` são tratadas com `try/except` silencioso e não derrubam a ação principal do usuário.
-
-### Por que Redis Streams (e não lista simples)?
-
-Optamos por **Redis Streams** (`XADD`/`XREVRANGE`) em vez de listas simples (`LPUSH`/`LRANGE`) porque:
-- Streams geram IDs com timestamp nativo (`<millis>-<seq>`), garantindo ordenação cronológica automática.
-- `XREVRANGE` permite consultar "últimos N eventos" de forma eficiente sem reverter a lista inteira.
-- É a estrutura de dados do Redis projetada especificamente para log de eventos.
-
 ---
 
-## 🚀 Funcionalidades
-
-- 🔐 **Autenticação Desacoplada**: Registro, login e emissão de tokens JWT com identificação de papéis (`role: user | admin`).
-- 🔑 **Recuperação de Senha Segura**: Disparo de e-mail via SMTP (Mailtrap) com link e token criptográfico de uso único com expiração em 30 minutos.
-- 🎞️ **Catálogo TMDB ao Vivo**: Busca de filmes em tempo real na API TMDB (sem salvar o catálogo desnecessariamente no banco).
-- ⭐ **Favoritos & Comentários**: Dados segregados e protegidos contra IDOR gravados no MariaDB individual.
-- 👤 **Perfil de Usuário (Atividade 6)**: Página de perfil estilo rede social com foto de avatar e biografia. A foto é armazenada no **MinIO** (Object Storage); o banco guarda apenas a chave do objeto.
-- 🛡️ **Segurança Total**: Nenhuma credencial ou chave hardcoded no código; injeção estrita via variáveis de ambiente.
-- 🔒 **Autorização RBAC**: Controle de acesso baseado em papéis (`user` / `admin`) com enforcement no backend.
-- 📋 **Logs de Auditoria Centralizado**: Microsserviço dedicado com Redis Streams para registro imutável de "quem fez o quê, e quando".
-
----
-
-## 🔒 Autorização — RBAC (Role-Based Access Control)
-
-O sistema implementa controle de acesso baseado em papéis. O campo `role` na tabela `usuarios` define as permissões de cada conta.
-
-### Permissões por Papel
-
-| Ação | `user` (usuário comum) | `admin` (administrador) |
-|------|:---:|:---:|
-| Visualizar catálogo de filmes | ✅ | ✅ |
-| Favoritar / Desfavoritar filmes | ✅ | ✅ |
-| Adicionar comentários | ✅ | ✅ |
-| Apagar **próprios** comentários | ✅ | ✅ |
-| Apagar comentários **de outros usuários** (Moderação) | ❌ (HTTP 403) | ✅ |
-| Visualizar comentários de outros usuários | ❌ | ✅ |
-| Consultar logs de auditoria (`/admin/logs`) | ❌ (HTTP 403) | ✅ |
-
-### Padrão de Arquitetura: Padrão A — Enforcement Centralizado
-
-Neste projeto utilizamos o **Padrão A (Enforcement Centralizado no Gateway)**. O fluxo funciona assim:
-
-1. O usuário faz login e recebe um **token JWT** (emitido pelo `auth-service`).
-2. A cada requisição protegida, o `catalog-service` envia o token para o endpoint `/auth/verify` do `auth-service`.
-3. O `auth-service` decodifica o JWT, consulta o banco de dados e retorna os dados do usuário **incluindo o `role`**.
-4. O `catalog-service` recebe o `role` e **decide localmente** se autoriza ou nega a ação (ex: retornar `HTTP 403 Forbidden`).
-
-**Vantagem:** A fonte de verdade do papel do usuário é sempre o banco de dados. Se um admin for rebaixado para `user`, a mudança é instantânea — na próxima requisição ele já perde os privilégios.
-
-### O que mudaria com o Padrão B — Claims no JWT?
-
-No **Padrão B**, o `role` seria incluído diretamente dentro do payload (claims) do token JWT no momento da emissão. O `catalog-service` decodificaria o token **localmente** (sem consultar o `auth-service` a cada requisição) e leria o `role` direto do JWT.
-
-**Mudanças no código:**
-- O `auth-service` incluiria `"role": "admin"` no payload do JWT durante o login.
-- O `catalog-service` não precisaria mais chamar `/auth/verify`. Bastaria decodificar o JWT localmente com a `SECRET_KEY` compartilhada.
-- A função `verify_token()` em `app/auth.py` seria substituída por uma decodificação local usando `python-jose`.
-
-**Trade-off:** Maior performance (sem chamada HTTP a cada request), porém o `role` fica "congelado" no token até ele expirar. Se um admin for rebaixado, ele mantém os privilégios até o JWT expirar ou ser invalidado manualmente.
-
-**Nota:** O `log-service` utiliza o **Padrão B** para decodificar o JWT localmente na rota `GET /logs`, pois não precisa consultar o banco — apenas verifica se o token é válido e se o `role` é `admin`. Essa é uma decisão arquitetural consciente: para um serviço interno de leitura de logs, a verificação local é suficiente e mais performática.
-
----
-
-## 🛠️ Stack Tecnológica
-
-| Camada            | Tecnologia                          |
-|-------------------|-------------------------------------|
-| Gateway / UI      | FastAPI + Jinja2 (catalog-service)  |
-| Autenticação      | FastAPI + Jose JWT + Passlib bcrypt |
-| Logs / Auditoria  | FastAPI + Redis Streams (log-service) |
-| Envio de E-mails  | Python SMTP (Mailtrap)              |
-| Object Storage    | MinIO (compatível com S3)           |
-| Banco de Dados    | MariaDB                             |
-| Cache de Eventos  | Redis 7 Alpine                      |
-| API Externa       | TMDB (The Movie Database)           |
-| Comunicação HTTP  | httpx (assíncrono)                  |
-| Orquestração      | Docker Compose (Bridge Network)     |
-
----
-
-## ☁️ Matriz de Responsabilidade em Nuvem (SaaS, PaaS, IaaS)
-
-A infraestrutura do projeto foi categorizada de acordo com os modelos de serviço de computação em nuvem (NIST / Cloud Computing Taxonomy), mapeando os níveis de abstração e gestão operacional:
-
-| Modelo de Serviço | Componente / Elemento da Pilha | Justificativa Técnica e Escopo de Responsabilidade |
-| :---: | :--- | :--- |
-| **IaaS** *(Infrastructure as a Service)* | **Cluster On-Premises / Proxmox VM / Host Ubuntu** | Onde a infraestrutura física, a virtualização (Proxmox VE), o Sistema Operacional Linux e a Docker Engine foram provisionados e são administrados manualmente pela equipe/laboratório multi-tenant. |
-| **IaaS** *(Infrastructure as a Service)* | **Instância GCP `e2-micro` (Always Free)** | Máquina virtual pública (`35.226.64.52`) provisionada na Google Cloud Platform atuando como **Relay TCP / Servidor FRP** para contornar o CGNAT (*Carrier-Grade NAT*) da rede interna física da FATEC. |
-| **PaaS** *(Platform as a Service)* | **Containers da Aplicação no Docker Engine / Portainer** | Os serviços (`catalog-service`, `auth-service`, `log-service`, `MinIO` e `Redis`) são empacotados como imagens OCI. A plataforma (Docker/Portainer) gerencia execução, isolamento de rede (`internal-net`) e portas sem exigir reinstalação ou gestão do SO host por container. |
-| **PaaS** *(Platform as a Service)* | **MariaDB Gerenciado / Instância de Banco (DBaaS Lógico)** | Utilizado como serviço de banco de dados gerenciado individual por aluno (`IAC_2026_02_iago_lima`), desacoplando a aplicação da administração e manutenção do SGBD subjacente. |
-| **SaaS** *(Software as a Service)* | **Stripe (Checkout & Assinaturas)** | Plataforma pronta consumida exclusivamente via API REST e Webhooks para processamento seguro de pagamentos e checkout sem tocar em infraestrutura ou armazenar cartões. |
-| **SaaS** *(Software as a Service)* | **TMDB (The Movie Database)** | Serviço de catálogo de entretenimento consumido via API REST e CDN para busca em tempo real da filmografia e posters de Tom Hanks, sem persistência estática local. |
-| **SaaS** *(Software as a Service)* | **Mailtrap (SMTP Transacional)** | Serviço pronto de entrega de e-mails em nuvem consumido via protocolo SMTP para disparo das mensagens de recuperação de senha com tokens de 30 minutos. |
-
-> 📌 **Documentação Completa de Arquitetura e Regras:** Para diagramas de blocos Mermaid detalhados, catálogo de regras de negócio ("Se X, Então Y") e modelagem de dados completa, consulte o arquivo [DOCUMENTACAO.md](DOCUMENTACAO.md).
-
----
-
-## ⚙️ Como Rodar Localmente
+## 11. Como Rodar Localmente
 
 ### 1. Clonar o repositório
 ```bash
-git clone <url-do-repo>
-cd atividade2
+git clone https://github.com/Lebron057/saude-domiciliar.git
+cd saude-domiciliar
 ```
 
-### 2. Configurar as variáveis de ambiente
-Copie o arquivo de exemplo e preencha com suas credenciais:
+### 2. Configurar variáveis de ambiente
+Copie o template de desenvolvimento e preencha suas chaves (Stripe, banco, secret):
 ```bash
 cp .env.example .env
 ```
 
-### 3. Subir os microsserviços com Docker Compose
+### 3. Subir os microsserviços via Docker Compose
 ```bash
-docker-compose up --build
+docker compose up -d --build
 ```
+
+O compose executa automaticamente o serviço `migrator` aplicando todas as migrações versionadas pendentes no MariaDB antes de iniciar o `catalog-service` e o `auth-service`.
 
 Acesse no navegador:
-`http://localhost:8000` (ou na porta configurada em `APP_PORT`).
+* **Aplicação Web:** `http://localhost:8210`
+* **Healthcheck do Sistema:** `http://localhost:8210/health`
+* **Mural de Plantões:** `http://localhost:8210/profissionais`
+* **Catálogo de Equipamentos:** `http://localhost:8210/equipamentos`
 
 ---
 
-## 🔐 Variáveis de Ambiente (`.env`)
+## 12. Documentação Complementar e Backlog
 
-| Variável            | Descrição                                         | Padrão / Exemplo |
-|---------------------|---------------------------------------------------|-------------------|
-| `TMDB_API_KEY`      | Chave de desenvolvedor da API TMDB               | `e022dc5...`      |
-| `DB_HOST`           | Endereço do host do MariaDB                       | `35.226.64.52`    |
-| `DB_PORT`           | Porta do MariaDB                                  | `3306`            |
-| `DB_USER`           | Usuário de acesso ao banco                        | `meu_usuario`     |
-| `DB_PASSWORD`       | Senha de acesso ao banco                          | `minha_senha`     |
-| `DB_NAME`           | Nome da base de dados                             | `minha_base`      |
-| `SECRET_KEY`        | Segredo para assinatura dos tokens JWT            | `secret-key-32`   |
-| `AUTH_SERVICE_URL`  | URL interna do serviço de auth                    | `http://auth-service:8001` |
-| `LOG_SERVICE_URL`   | URL interna do serviço de logs                    | `http://log-service:8002` |
-| `REDIS_HOST`        | Host do Redis (usado pelo log-service)            | `redis`           |
-| `REDIS_PORT`        | Porta do Redis                                    | `6379`            |
-| `SMTP_HOST`         | Host SMTP do Mailtrap                             | `sandbox.smtp.mailtrap.io` |
-| `SMTP_PORT`         | Porta SMTP                                        | `2525`            |
-| `SMTP_USER`         | Usuário SMTP Mailtrap                             |                   |
-| `SMTP_PASSWORD`     | Senha SMTP Mailtrap                               |                   |
-| `SMTP_FROM`         | E-mail remetente de notificações                  | `noreply@catalogofilmes.com` |
-| `APP_PORT`          | Porta pública mapeada no container                | `8000`            |
-| `MINIO_ENDPOINT`    | Endpoint interno do MinIO                         | `minio:9000`      |
-| `MINIO_ROOT_USER`   | Usuário admin do MinIO (**obrigatório**, mín. 3 chars) | `minioadmin`   |
-| `MINIO_ROOT_PASSWORD` | Senha admin do MinIO (**obrigatório**, mín. 8 chars) | `minioadmin`  |
-| `MINIO_BUCKET`      | Nome do bucket para avatares                      | `avatars`         |
-| `MINIO_CONSOLE_PORT`| Porta pública do console web do MinIO             | `9001`            |
-
----
-
-## 📁 Estrutura do Projeto
-
-```
-├── app/                        # catalog-service (Público)
-│   ├── main.py                 # Rotas da UI, catálogo, perfil, repasse HTTP e disparo de logs
-│   ├── auth.py                 # Cliente HTTP assíncrono para o auth-service
-│   ├── tmdb.py                 # Consumo da API TMDB
-│   ├── database.py             # Conexão e init de tabelas (inclui migração bio/avatar_key)
-│   ├── minio_client.py         # Cliente MinIO: bucket, upload, remoção e proxy de avatares
-│   ├── templates/              # Telas Jinja2 (login, register, catalog, profile, admin_logs)
-│   └── static/                 # Estilos e design system (CSS)
-│
-├── auth_service/               # auth-service (Privado)
-│   ├── main.py                 # Endpoints privados de auth, reset de senha e disparo de logs
-│   ├── models.py               # Schemas Pydantic de validação
-│   ├── security.py             # Hash bcrypt, JWT e geração de tokens
-│   ├── mailer.py               # Disparo real de e-mails via Mailtrap SMTP
-│   └── database.py             # Conexão e garantia de schema (usuarios, reset_tokens)
-│
-├── log_service/                # log-service (Privado) — Atividade 5
-│   ├── __init__.py             # Pacote Python
-│   └── main.py                 # Endpoints de log: POST /logs, GET /logs, GET /health
-│
-├── schema.sql                  # Script SQL do banco de dados (incl. bio e avatar_key)
-├── Dockerfile                  # Imagem base dos microsserviços
-├── docker-compose.yml          # Orquestração com rede internal-net (incl. redis + log-service + minio)
-├── requirements.txt            # Dependências Python (incl. redis, minio)
-├── .env.example                # Modelo de variáveis de ambiente
-├── DOCUMENTACAO.md            # Documentação técnica reversa, arquitetura Mermaid, regras de negócio e modelo ER
-└── README.md                   # Documentação do projeto
-```
-
-## ✉️ Imagem do mailtrap recebendo e-mail
-![alt text](image.png)
-
-## ✉️ imagem do sistema ao tentar acessar o link de recuperação de senha após 30 minutos ou após já ter utilizado
-![alt text](image-1.png)
-
----
-
-## 🗄️ Object Storage (MinIO) — Atividade 6
-
-### Decisão do Modelo de Acesso ao Bucket
-
-Foi adotada a **Opção A — Bucket com leitura pública** (`s3:GetObject` para todos).
-
-#### Trade-offs
-
-| Critério | Opção A (Pública) | Opção B (URLs pré-assinadas) |
-|----------|:---:|:---:|
-| Complexidade | Baixa | Alta |
-| URLs permanentes | ✅ | ❌ (expiram) |
-| Controle de acesso | Baixo (qualquer um com a URL acessa) | Alto |
-| Caching no browser | ✅ Simples | Complexo (URL muda) |
-| Revogação de acesso | Só deletando o objeto | Basta não gerar nova URL |
-
-**Justificativa da escolha:** As fotos de perfil são informações intencionalmente pública (mesma lógica de um avatar em rede social). A simplicidade da Opção A não exige gerar/renovar URLs em cada requisição, o que reduz latência e complexidade. O risco (“qualquer pessoa com a URL exata pode ver a foto”) é aceitável dado o contexto acadêmico e o tipo de dado.
-
-> Caso o requisito mude para fotos privadas, a Opção B pode ser implementada gerando URLs pré-assinadas com `client.presigned_get_object(bucket, key, expires=timedelta(hours=1))` e ajustando a rota `/storage/avatars/<filename>` para redirecionar para a URL temporária.
-
-### Fluxo de Upload
-
-```
-Navegador ──POST /profile/{id}/upload──► catalog-service
-                                           │ 1. Valida JWT + ID (403 se diferente)
-                                           │ 2. Valida MIME type e tamanho (≤ 3 MB)
-                                           │ 3. Envia binário ────────────► MinIO (bucket: avatars)
-                                           │ 4. Grava bio + avatar_key ──► MariaDB
-                                           │ 5. Remove foto anterior do MinIO (best-effort)
-Navegador ──GET /storage/avatars/{file}──► catalog-service ─lê do─► MinIO
-```
-
-### Segurança
-
-- O `PUT` compara o `id` da URL com o `user_id` extraído do JWT. Se forem diferentes, responde **HTTP 403** e registra o evento `audit.security.access_denied`.
-- O backend **nunca confia** no `user_id` enviado no corpo da requisição.
-- Credenciais MinIO (`MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`) ficam apenas no servidor.
-- Leitura pública cobre apenas `s3:GetObject`. Escrita é exclusiva do backend.
-- Ao trocar de foto, a anterior é removida do bucket para evitar objetos órfãos.
-
----
-
-## 💳 Plano Premium com Stripe — Atividade 7
-
-### Visão Geral & Segurança de Pagamento
-
-A Atividade 7 adiciona o modelo de assinatura de **Plano Premium** com pagamentos integrados via **Stripe** operando estritamente em **Modo de Teste**.
-
-**Regra Inviolável de Segurança:** Nossa aplicação **nunca armazena, recebe ou processa** dados sensíveis de cartão de crédito (número, validade, CVV). Toda a coleta de dados de pagamento ocorre nas páginas seguras hospedadas pela Stripe (*Stripe Hosted Checkout*).
-
-### Arquitetura de Microsserviços e Roteamento do Webhook
-
-Como o `auth-service` opera em rede isolada (`internal-net`) sem portas expostas para a internet, o `catalog-service` (porta pública `8210`) atua como a borda pública responsável por:
-1. Iniciar a **Checkout Session** da Stripe;
-2. Receber a notificação assíncrona do **Webhook** (`POST /webhook/stripe`);
-3. Validar a assinatura criptográfica do evento;
-4. Atualizar o banco de dados MariaDB (`premium = TRUE`).
-
-```
-[ Navegador do Usuário ]
-        │
-        ├───────────────────────────────────────────────────────┐
-        │ 1. Clica em "Seja Premium" (/checkout/subscribe)      │ 3. Paga no Checkout da Stripe
-        ▼                                                       ▼
-+───────────────────────────────────+             +──────────────────────────+
-│    catalog-service (Porta 8210)   │ ──(2. Cria)─▶│      Stripe Hosted      │
-│   (Borda pública da aplicação)    │             │         Checkout         │
-+───────────────────────────────────+             +─────────────┬────────────+
-        ▲                                                       │
-        │ 4. Webhook assíncrono (POST /webhook/stripe)          │
-        │    - Cabeçalho: Stripe-Signature                      │
-        │    - Evento: checkout.session.completed               │
-        └───────────────────────────────────────────────────────┘
-                                │
-                                ▼ 5. Atualiza usuário (premium = TRUE)
-                    +────────────────────────+
-                    │    MariaDB (Remoto)    │
-                    │   Tabela `usuarios`    │
-                    +────────────────────────+
-```
-
-### Validação Criptográfica do Webhook (Segurança Crítica)
-
-O endpoint `POST /webhook/stripe` não aceita requisições sem verificação criptográfica:
-- Lê o payload bruto em bytes (`await request.body()`);
-- Lê o cabeçalho `Stripe-Signature`;
-- Valida o hash HMAC utilizando o `STRIPE_WEBHOOK_SECRET` via `stripe.Webhook.construct_event(...)`;
-- Requisições sem assinatura válida são rejeitadas imediatamente com **HTTP 400**.
-
-### Benefícios Verificáveis (Feature Premium)
-
-| Funcionalidade | Usuário Comum (Free) | Assinante Premium |
-|---|:---:|:---:|
-| **Limite de Filmes Favoritos** | Máximo de **3 filmes** | **Ilimitado** |
-| **Selo Visual no Perfil e Cabeçalho** | — | **⭐ PREMIUM** (dourado com brilho) |
-| **Acesso ao Catálogo e Comentários** | ✅ Sim | ✅ Sim |
-
-Quando um usuário gratuito atinge o limite de 3 favoritos, novas tentativas de favoritar são bloqueadas pelo backend com feedback visual e link direto para upgrade.
-
-### Variáveis de Ambiente Necessárias (.env)
-
-```ini
-# Stripe (Modo de Teste)
-STRIPE_API_KEY=sk_test_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-```
-
-> **Aviso de Segurança:** O arquivo `.env` está no `.gitignore` e nunca é enviado ao GitHub.
-
-### Como Testar Localmente com o Stripe CLI
-
-1. Instale o [Stripe CLI](https://stripe.com/docs/stripe-cli) ou utilize o painel de desenvolvedor da Stripe.
-2. Inicie o encaminhamento de webhooks para o container:
-   ```bash
-   stripe listen --forward-to localhost:8210/webhook/stripe
-   ```
-3. Copie o *Webhook Signing Secret* exibido no terminal (`whsec_...`) e adicione ao `.env` como `STRIPE_WEBHOOK_SECRET`.
-4. Dispare um evento de teste:
-   ```bash
-   stripe trigger checkout.session.completed
-   ```
-5. Para testar o fluxo completo pelo navegador, use os cartões de crédito oficiais de teste do Stripe:
-   - **Número:** `4242 4242 4242 4242`
-   - **Validade:** Qualquer data futura (ex: `12/28`)
-   - **CVC:** `123`
+* [Arquitetura Detalhada do Sistema](docs/ARQUITETURA_SAUDE_DOMICILIAR.md)
+* [Runbook de Deploy no Portainer](docs/RUNBOOK_DEPLOY.md)
+* [Backlog de Issues do GitHub (12 Issues Detalhadas)](docs/backlog/ISSUES.md)
+* [Documentação da P1 e Arquivos Legados de Filmes](docs/legado/DOCUMENTACAO.md)

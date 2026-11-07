@@ -3,48 +3,55 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Catálogo de Filmes de Tom Hanks — Busque, favorite e comente os melhores filmes.">
-    <title>{% block title %}Catálogo Tom Hanks{% endblock %}</title>
+    <meta name="description" content="CuidaHome — Plataforma integrada de plantões de cuidadores/enfermagem e locação de equipamentos hospitalares.">
+    <title>{% block title %}CuidaHome — Saúde & Atendimento Domiciliar{% endblock %}</title>
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-    {% if user %}
     <nav class="navbar">
-        <a href="/catalog" class="navbar-brand">
-            <span class="icon">🎬</span>
-            Tom Hanks Films
+        <a href="/" class="navbar-brand">
+            <span class="icon">🩺</span>
+            <strong>CuidaHome</strong>
         </a>
         <div class="navbar-links">
-            <a href="/catalog" class="{{ 'active' if active_page == 'catalog' else '' }}">🎞️ Catálogo</a>
-            <a href="/favorites" class="{{ 'active' if active_page == 'favorites' else '' }}">⭐ Favoritos</a>
-            <a href="/profile/{{ user.id }}" class="{{ 'active' if active_page == 'profile' else '' }}">👤 Perfil</a>
-            {% if user.role == 'admin' %}
-            <a href="/admin/logs" class="{{ 'active' if active_page == 'admin_logs' else '' }}">🛡️ Logs</a>
+            <a href="/" class="{{ 'active' if active_page == 'home' else '' }}"><i class="fa-solid fa-house"></i> Início</a>
+            <a href="/equipamentos" class="{{ 'active' if active_page == 'equipamentos' else '' }}"><i class="fa-solid fa-wheelchair"></i> Equipamentos</a>
+            <a href="/profissionais" class="{{ 'active' if active_page == 'profissionais' else '' }}"><i class="fa-solid fa-user-nurse"></i> Plantões</a>
+            {% if user and user.role == 'admin' %}
+            <a href="/admin/logs" class="{{ 'active' if active_page == 'admin_logs' else '' }}"><i class="fa-solid fa-shield-halved"></i> Auditoria</a>
             {% endif %}
         </div>
         <div style="display: flex; align-items: center; gap: 1rem;">
+            {% if user %}
             <a href="/profile/{{ user.id }}" class="navbar-user" style="text-decoration: none;">
                 <div class="user-icon">{{ user.nome[0]|upper }}</div>
                 <span>{{ user.nome }}</span>
-                {% if user.premium %}
-                <span style="background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; font-size: 0.68rem; font-weight: 800; padding: 2px 8px; border-radius: 999px; box-shadow: 0 0 10px rgba(245, 158, 11, 0.4); text-transform: uppercase; letter-spacing: 0.05em; display: inline-flex; align-items: center; gap: 3px;">⭐ PREMIUM</span>
-                {% endif %}
                 {% if user.role == 'admin' %}
-                <span style="background: rgba(252, 92, 124, 0.2); color: #fc5c7c; font-size: 0.7rem; font-weight: 700; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(252, 92, 124, 0.4); text-transform: uppercase;">Admin</span>
+                <span class="badge badge-admin">Admin</span>
+                {% elif user.role == 'profissional_saude' %}
+                <span class="badge badge-prof">Saúde</span>
+                {% elif user.role == 'fornecedor_equipamento' %}
+                <span class="badge badge-forn">Fornecedor</span>
+                {% else %}
+                <span class="badge badge-family">Família</span>
                 {% endif %}
             </a>
-            {% if not user.premium %}
-            <a href="/checkout/subscribe" class="btn btn-sm" style="background: linear-gradient(135deg, #f59e0b, #eab308); color: #18181b; font-weight: 800; border-radius: 999px; text-decoration: none; padding: 5px 12px; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3); border: none; font-size: 0.8rem;">
-                ⭐ Seja Premium
-            </a>
-            {% endif %}
             <a href="/logout" class="btn btn-ghost btn-sm">Sair</a>
+            {% else %}
+            <a href="/login" class="btn btn-ghost btn-sm">Entrar</a>
+            <a href="/register" class="btn btn-primary btn-sm">Cadastre-se</a>
+            {% endif %}
         </div>
     </nav>
-    {% endif %}
 
     <main>
         {% block content %}{% endblock %}
     </main>
+
+    <footer style="margin-top: 4rem; padding: 2rem 1rem; text-align: center; border-top: 1px solid var(--border-color, #27272a); color: #71717a; font-size: 0.85rem;">
+        <p><strong>CuidaHome</strong> — Plataforma de Saúde & Atendimento Domiciliar</p>
+        <p style="margin-top: 0.4rem;">Disciplina: <em>Introdução à Computação em Nuvem (ISW055)</em> — FATEC • Prof. Allan Siriani (<a href="https://github.com/siriani" target="_blank" style="color: #06b6d4; text-decoration: none;">@siriani</a>)</p>
+    </footer>
 </body>
 </html>

@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% block title %}CuidaHome — Plantões de Saúde & Locação de Aparelhos Ortopédicos{% endblock %}
+
+{% block content %}
+<div class="landing-container" style="max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem;">
+
+    {% if message %}
+    <div class="alert alert-success" style="margin-bottom: 2rem;">{{ message }}</div>
+    {% endif %}
+    {% if error %}
+    <div class="alert alert-danger" style="margin-bottom: 2rem;">{{ error }}</div>
+    {% endif %}
+
+    <!-- Hero Section -->
+    <section class="hero-section" style="text-align: center; padding: 3rem 1rem 4rem 1rem; background: radial-gradient(circle at 50% 20%, rgba(6, 182, 212, 0.15), transparent 70%); border-radius: 1.5rem; margin-bottom: 3rem; border: 1px solid rgba(6, 182, 212, 0.2);">
+        <div style="display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(6, 182, 212, 0.1); color: #06b6d4; padding: 0.4rem 1rem; border-radius: 999px; font-size: 0.85rem; font-weight: 600; margin-bottom: 1.5rem; border: 1px solid rgba(6, 182, 212, 0.3);">
+            <i class="fa-solid fa-heart-pulse"></i> Cuidado Domiciliar Ágil e Desburocratizado
+        </div>
+        <h1 style="font-size: 2.8rem; font-weight: 800; line-height: 1.2; margin-bottom: 1.2rem; color: #f4f4f5;">
+            Recuperação Domiciliar com <br>
+            <span style="background: linear-gradient(135deg, #06b6d4, #10b981); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Profissionais Certificados</span> e <span style="background: linear-gradient(135deg, #10b981, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Aparelhos sob Demanda</span>
+        </h1>
+        <p style="font-size: 1.15rem; color: #a1a1aa; max-width: 720px; margin: 0 auto 2.5rem auto; line-height: 1.6;">
+            Conectamos famílias a cuidadores e profissionais de enfermagem validados em minutos, e entregamos camas articuladas e cadeiras de rodas por assinatura mensal sem burocracia de caução ou fiador.
+        </p>
+        
+        <!-- Search Bar -->
+        <div style="max-width: 680px; margin: 0 auto; background: #18181b; padding: 0.6rem; border-radius: 999px; border: 1px solid #27272a; box-shadow: 0 10px 30px rgba(0,0,0,0.5); display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <input type="text" placeholder="O que você precisa? (ex: Cuidador noturno, Cama hospitalar)" style="flex: 2; min-width: 200px; background: transparent; border: none; padding: 0.8rem 1.2rem; color: #fff; font-size: 0.95rem; outline: none;">
+            <input type="text" placeholder="Sua Cidade / UF" style="flex: 1; min-width: 130px; background: transparent; border: none; border-left: 1px solid #27272a; padding: 0.8rem 1rem; color: #fff; font-size: 0.95rem; outline: none;">
+            <a href="/profissionais" class="btn btn-primary" style="border-radius: 999px; padding: 0.8rem 1.8rem; font-weight: 700; display: inline-flex; align-items: center; gap: 0.5rem;">
+                <i class="fa-solid fa-magnifying-glass"></i> Buscar
+            </a>
+        </div>
+    </section>
+
+    <!-- Pilares de Valor / Como Funciona -->
+    <section style="margin-bottom: 4rem;">
+        <div style="text-align: center; margin-bottom: 2.5rem;">
+            <h2 style="font-size: 1.8rem; font-weight: 700; color: #f4f4f5;">Como o CuidaHome funciona</h2>
+            <p style="color: #71717a;">Assistência completa em três passos simples</p>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem;">
+            <div class="card" style="padding: 2rem; border-radius: 1rem; border: 1px solid #27272a; background: #121215;">
+                <div style="width: 50px; height: 50px; background: rgba(6, 182, 212, 0.15); color: #06b6d4; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; margin-bottom: 1.2rem;">
+                    <i class="fa-solid fa-user-shield"></i>
+                </div>
+                <h3 style="font-size: 1.2rem; font-weight: 700; margin-bottom: 0.6rem; color: #f4f4f5;">1. Profissionais Triados</h3>
+                <p style="color: #a1a1aa; font-size: 0.95rem; line-height: 1.5;">
+                    Checagem rigorosa de registro no COREN, antecedentes e diplomas para garantir total segurança jurídica e assistencial à sua família.
+                </p>
+            </div>
+            <div class="card" style="padding: 2rem; border-radius: 1rem; border: 1px solid #27272a; background: #121215;">
+                <div style="width: 50px; height: 50px; background: rgba(16, 185, 129, 0.15); color: #10b981; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; margin-bottom: 1.2rem;">
+                    <i class="fa-solid fa-truck-ramp-box"></i>
+                </div>
+                <h3 style="font-size: 1.2rem; font-weight: 700; margin-bottom: 0.6rem; color: #f4f4f5;">2. Locação Flexível</h3>
+                <p style="color: #a1a1aa; font-size: 0.95rem; line-height: 1.5;">
+                    Alugue camas, cadeiras de rodas e andadores por assinatura mensal recorrente com entrega rápida na sua residência.
+                </p>
+            </div>
+            <div class="card" style="padding: 2rem; border-radius: 1rem; border: 1px solid #27272a; background: #121215;">
+                <div style="width: 50px; height: 50px; background: rgba(59, 130, 246, 0.15); color: #3b82f6; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; margin-bottom: 1.2rem;">
+                    <i class="fa-brands fa-stripe"></i>
+                </div>
+                <h3 style="font-size: 1.2rem; font-weight: 700; margin-bottom: 0.6rem; color: #f4f4f5;">3. Pagamento Seguro</h3>
+                <p style="color: #a1a1aa; font-size: 0.95rem; line-height: 1.5;">
+                    Transações 100% integradas via Stripe com pré-autorização segura de garantia, sem necessidade de cheques ou notas promissórias.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Vitrine de Equipamentos em Destaque -->
+    <section style="margin-bottom: 4rem;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 1.8rem;">
+            <div>
+                <h2 style="font-size: 1.8rem; font-weight: 700; color: #f4f4f5;">Equipamentos para Locação Imediata</h2>
+                <p style="color: #71717a;">Assinaturas mensais renovadas automaticamente até a devolução</p>
+            </div>
+            <a href="/equipamentos" style="color: #06b6d4; text-decoration: none; font-weight: 600; font-size: 0.95rem;">Ver todos os equipamentos →</a>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.5rem;">
+            <!-- Card 1 -->
+            <div class="card" style="border: 1px solid #27272a; border-radius: 1rem; overflow: hidden; background: #18181b;">
+                <div style="height: 160px; background: #27272a; display: flex; align-items: center; justify-content: center; font-size: 3.5rem; color: #06b6d4;">
+                    <i class="fa-solid fa-bed"></i>
+                </div>
+                <div style="padding: 1.5rem;">
+                    <span style="font-size: 0.75rem; font-weight: 700; color: #06b6d4; text-transform: uppercase;">Camas Hospitalares</span>
+                    <h3 style="font-size: 1.15rem; font-weight: 700; margin: 0.4rem 0 0.8rem 0; color: #fff;">Cama Articulada Elétrica 3 Movimentos</h3>
+                    <p style="color: #a1a1aa; font-size: 0.85rem; line-height: 1.4; margin-bottom: 1.2rem;">Com grades laterais de proteção e colchão impermeável incluso.</p>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span style="font-size: 1.25rem; font-weight: 800; color: #10b981;">R$ 290,00</span>
+                            <span style="font-size: 0.75rem; color: #71717a;">/mês</span>
+                        </div>
+                        <a href="/equipamentos" class="btn btn-sm btn-primary">Alugar</a>
+                    </div>
+                </div>
+            </div>
+            <!-- Card 2 -->
+            <div class="card" style="border: 1px solid #27272a; border-radius: 1rem; overflow: hidden; background: #18181b;">
+                <div style="height: 160px; background: #27272a; display: flex; align-items: center; justify-content: center; font-size: 3.5rem; color: #10b981;">
+                    <i class="fa-solid fa-wheelchair"></i>
+                </div>
+                <div style="padding: 1.5rem;">
+                    <span style="font-size: 0.75rem; font-weight: 700; color: #10b981; text-transform: uppercase;">Cadeiras de Rodas</span>
+                    <h3 style="font-size: 1.15rem; font-weight: 700; margin: 0.4rem 0 0.8rem 0; color: #fff;">Cadeira de Rodas Dobrável Alumínio</h3>
+                    <p style="color: #a1a1aa; font-size: 0.85rem; line-height: 1.4; margin-bottom: 1.2rem;">Estrutura reforçada de até 120kg, dobrável e fácil de transportar.</p>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span style="font-size: 1.25rem; font-weight: 800; color: #10b981;">R$ 149,00</span>
+                            <span style="font-size: 0.75rem; color: #71717a;">/mês</span>
+                        </div>
+                        <a href="/equipamentos" class="btn btn-sm btn-primary">Alugar</a>
+                    </div>
+                </div>
+            </div>
+            <!-- Card 3 -->
+            <div class="card" style="border: 1px solid #27272a; border-radius: 1rem; overflow: hidden; background: #18181b;">
+                <div style="height: 160px; background: #27272a; display: flex; align-items: center; justify-content: center; font-size: 3.5rem; color: #3b82f6;">
+                    <i class="fa-solid fa-person-walking"></i>
+                </div>
+                <div style="padding: 1.5rem;">
+                    <span style="font-size: 0.75rem; font-weight: 700; color: #3b82f6; text-transform: uppercase;">Andadores</span>
+                    <h3 style="font-size: 1.15rem; font-weight: 700; margin: 0.4rem 0 0.8rem 0; color: #fff;">Andador Articulado 3 Barras em Alumínio</h3>
+                    <p style="color: #a1a1aa; font-size: 0.85rem; line-height: 1.4; margin-bottom: 1.2rem;">Ajuste de altura com 8 níveis e ponteiras em borracha anti-derrapante.</p>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span style="font-size: 1.25rem; font-weight: 800; color: #10b981;">R$ 69,00</span>
+                            <span style="font-size: 0.75rem; color: #71717a;">/mês</span>
+                        </div>
+                        <a href="/equipamentos" class="btn btn-sm btn-primary">Alugar</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Chamada para Ação para Profissionais e Fornecedores -->
+    <section style="background: linear-gradient(135deg, #18181b, #09090b); border: 1px solid #27272a; border-radius: 1.5rem; padding: 3rem 2rem; text-align: center;">
+        <h2 style="font-size: 2rem; font-weight: 800; color: #f4f4f5; margin-bottom: 1rem;">
+            Você é Cuidador, Enfermeiro ou Fornecedor?
+        </h2>
+        <p style="color: #a1a1aa; max-width: 640px; margin: 0 auto 2rem auto; font-size: 1.05rem;">
+            Cadastre-se na rede CuidaHome, receba solicitações de plantão diretamente no seu painel ou liste seus equipamentos ortopédicos para aluguel recorrente.
+        </p>
+        <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+            <a href="/register" class="btn btn-primary" style="padding: 0.8rem 2rem; font-weight: 700;">
+                <i class="fa-solid fa-user-plus"></i> Criar Conta Profissional
+            </a>
+            <a href="/login" class="btn btn-ghost" style="padding: 0.8rem 2rem;">
+                Acessar meu painel
+            </a>
+        </div>
+    </section>
+</div>
+{% endblock %}
+

@@ -1,12 +1,28 @@
 services:
+  migrator:
+    build: .
+    container_name: migrator-iago
+    command: ["python", "-m", "db.migrate"]
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+    networks:
+      - internal-net
+    restart: "no"
+
   catalog-service:
     build: .
     image: lebron057/catalog-service:latest
     container_name: catalog-service-iago
     ports:
-      - "${APP_PORT:-8000}:8000"
+      - "${APP_PORT:-8210}:8000"
     environment:
-      - TMDB_API_KEY=${TMDB_API_KEY}
+      - APP_NAME=${APP_NAME:-CuidaHome}
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-https://iago-lima-isw055.lapps.studio}
+      - PLATFORM_FEE_PERCENT=${PLATFORM_FEE_PERCENT:-12}
       - DB_HOST=${DB_HOST}
       - DB_PORT=${DB_PORT:-3306}
       - DB_USER=${DB_USER}
@@ -15,20 +31,35 @@ services:
       - SECRET_KEY=${SECRET_KEY}
       - AUTH_SERVICE_URL=${AUTH_SERVICE_URL:-http://auth-service:8001}
       - LOG_SERVICE_URL=${LOG_SERVICE_URL:-http://log-service:8002}
-      # Garage — acesso interno (o catalog-service proxy as imagens)
+      # Garage / S3
       - MINIO_ENDPOINT=${MINIO_ENDPOINT:-garage:9000}
       - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
       - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
       - MINIO_BUCKET=${MINIO_BUCKET:-avatars}
-      # Stripe (Atividade 7)
+      - S3_BUCKET_AVATARS=${S3_BUCKET_AVATARS:-avatars}
+      - S3_BUCKET_EQUIPAMENTOS=${S3_BUCKET_EQUIPAMENTOS:-equipamentos}
+      - S3_BUCKET_CREDENCIAIS=${S3_BUCKET_CREDENCIAIS:-credenciais}
+      - S3_BUCKET_DOCUMENTOS=${S3_BUCKET_DOCUMENTOS:-documentos}
+      # Stripe
       - STRIPE_API_KEY=${STRIPE_API_KEY}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
     depends_on:
-      - auth-service
-      - log-service
-      - garage
+      migrator:
+        condition: service_completed_successfully
+      auth-service:
+        condition: service_started
+      log-service:
+        condition: service_started
+      garage:
+        condition: service_started
     networks:
       - internal-net
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     restart: unless-stopped
 
   auth-service:
@@ -49,12 +80,21 @@ services:
       - SMTP_PORT=${SMTP_PORT:-2525}
       - SMTP_USER=${SMTP_USER}
       - SMTP_PASSWORD=${SMTP_PASSWORD}
-      - SMTP_FROM=${SMTP_FROM:-noreply@catalogofilmes.com}
+      - SMTP_FROM=${SMTP_FROM:-noreply@cuidahome.com.br}
       - LOG_SERVICE_URL=${LOG_SERVICE_URL:-http://log-service:8002}
     depends_on:
-      - log-service
+      migrator:
+        condition: service_completed_successfully
+      log-service:
+        condition: service_started
     networks:
       - internal-net
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8001/health')\" || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     restart: unless-stopped
 
   log-service:
@@ -72,6 +112,12 @@ services:
       - redis
     networks:
       - internal-net
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8002/health')\" || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     restart: unless-stopped
 
   garage:
@@ -79,7 +125,6 @@ services:
     container_name: garage-iago
     environment:
       - GARAGE_RPC_SECRET=${GARAGE_RPC_SECRET}
-      # Access Key ID deve ter formato GKxxxxxxxxxxxxxxxxxxxxxxxx (prefixo GK + 26 hex)
       - GARAGE_KEY_ID=${MINIO_ROOT_USER}
       - GARAGE_KEY_SECRET=${MINIO_ROOT_PASSWORD}
     command:
@@ -113,16 +158,17 @@ services:
         garage layout assign -z dc1 -c 1G $$NODE_ID || true
         garage layout apply --version 1 || true
 
-        # 'key import' aceita chave arbitrária somente com flag -n (nome) e --yes
         garage key import -n appkey --yes $$GARAGE_KEY_ID $$GARAGE_KEY_SECRET || true
-        garage bucket create avatars || true
-        garage bucket allow --read --write --key $$GARAGE_KEY_ID avatars || true
+        
+        # Criação e liberação dos 4 buckets da nova aplicação
+        for b in avatars equipamentos credenciais documentos; do
+          garage bucket create $$b || true
+          garage bucket allow --read --write --key $$GARAGE_KEY_ID $$b || true
+        done
 
         wait
     expose:
       - "9000"
-    ports:
-      - "9050:9000"
     volumes:
       - garage-data:/var/lib/garage
     networks:
@@ -138,6 +184,8 @@ services:
   redis:
     image: redis:7-alpine
     container_name: redis-iago
+    expose:
+      - "6379"
     networks:
       - internal-net
     restart: unless-stopped
