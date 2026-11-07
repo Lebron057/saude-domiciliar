@@ -1,0 +1,3 @@
+"""
+Roteadores da Aplicação CuidaHome.
+"""

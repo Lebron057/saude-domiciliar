@@ -74,6 +74,56 @@ def create_premium_checkout_session(
     return session
 
 
+def create_plantao_checkout_session(
+    plantao_id: int,
+    valor_diaria_centavos: int,
+    user_email: str,
+    base_url: str,
+) -> stripe.checkout.Session:
+    """
+    Cria uma Checkout Session no Stripe (modo payment / pontual) para pagamento da diária de plantão.
+    Metadados incluem tipo='plantao' e plantao_id para roteamento no webhook assíncrono.
+    """
+    if not is_stripe_configured():
+        raise ValueError("Stripe API Key não configurada. Defina STRIPE_API_KEY no arquivo .env.")
+
+    stripe.api_key = STRIPE_API_KEY
+
+    success_url = f"{base_url.rstrip('/')}/painel/familia?plantao_pago=true&plantao_id={plantao_id}"
+    cancel_url = f"{base_url.rstrip('/')}/painel/familia?canceled=true&plantao_id={plantao_id}"
+
+    session_params = {
+        "payment_method_types": ["card"],
+        "mode": "payment",
+        "line_items": [
+            {
+                "price_data": {
+                    "currency": "brl",
+                    "product_data": {
+                        "name": f"Plantão de Saúde Domiciliar #{plantao_id}",
+                        "description": "Pagamento de diária e taxa de intermediação de cuidados domiciliares — CuidaHome.",
+                    },
+                    "unit_amount": valor_diaria_centavos,
+                },
+                "quantity": 1,
+            }
+        ],
+        "client_reference_id": str(plantao_id),
+        "metadata": {
+            "tipo": "plantao",
+            "plantao_id": str(plantao_id),
+        },
+        "success_url": success_url,
+        "cancel_url": cancel_url,
+    }
+
+    if user_email and "@" in user_email and "." in user_email.split("@")[-1]:
+        session_params["customer_email"] = user_email
+
+    session = stripe.checkout.Session.create(**session_params)
+    return session
+
+
 def verify_and_construct_webhook_event(
     payload: bytes,
     sig_header: str,

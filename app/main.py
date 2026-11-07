@@ -84,6 +84,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="CuidaHome — Saúde & Atendimento Domiciliar", lifespan=lifespan)
 
+# Incluir roteadores especializados
+from app.routers.plantoes import router as plantoes_router
+from app.services.plantoes import confirmar_pagamento_plantao
+
+app.include_router(plantoes_router)
+
 # Montar arquivos estáticos e templates
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
@@ -450,12 +456,67 @@ async def stripe_webhook(request: Request):
         print(f"[Webhook] Assinatura inválida rejeitada: {e}")
         raise HTTPException(status_code=400, detail="Assinatura criptográfica do Stripe inválida.")
 
+    event_id = event.get("id")
     event_type = event.get("type", "")
+
+    # Idempotência no processamento de eventos do Stripe via tabela stripe_eventos
+    if event_id:
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "INSERT IGNORE INTO stripe_eventos (event_id, tipo) VALUES (%s, %s)",
+                (event_id, event_type),
+            )
+            conn.commit()
+            if cursor.rowcount == 0:
+                # Evento já recebido e registrado anteriormente (idempotência estrita)
+                return {"status": "duplicate_ignored", "event_id": event_id}
+        finally:
+            cursor.close()
+            conn.close()
 
     # Evento 1: Sessão de checkout concluída com sucesso
     if event_type == "checkout.session.completed":
         session = event["data"]["object"]
-        usuario_id_str = session.get("client_reference_id") or (session.get("metadata") or {}).get("usuario_id")
+        metadata = session.get("metadata") or {}
+        tipo = metadata.get("tipo")
+
+        # Roteamento 1A: Pagamento de Plantão Domiciliar (DoD 2)
+        if tipo == "plantao" and metadata.get("plantao_id"):
+            plantao_id = int(metadata["plantao_id"])
+            session_id = session.get("id")
+            payment_intent = session.get("payment_intent")
+
+            confirmar_pagamento_plantao(
+                plantao_id=plantao_id,
+                stripe_session_id=session_id,
+                stripe_payment_intent_id=payment_intent,
+            )
+
+            if event_id:
+                conn = get_connection()
+                cursor = conn.cursor()
+                try:
+                    cursor.execute(
+                        "UPDATE stripe_eventos SET processado_em = NOW() WHERE event_id = %s",
+                        (event_id,),
+                    )
+                    conn.commit()
+                finally:
+                    cursor.close()
+                    conn.close()
+
+            await _emit_log(
+                usuario_id=int(session.get("client_reference_id") or 0),
+                acao="plantao.confirmado",
+                detalhe=f"plantao_id={plantao_id}, session_id={session_id}",
+                ip_origem=_get_client_ip(request),
+            )
+            return {"status": "plantao_confirmed", "plantao_id": plantao_id}
+
+        # Roteamento 1B: Assinatura / Locação de Equipamentos ou Legado
+        usuario_id_str = session.get("client_reference_id") or metadata.get("usuario_id")
 
         if usuario_id_str:
             usuario_id = int(usuario_id_str)
@@ -471,6 +532,11 @@ async def stripe_webhook(request: Request):
                        WHERE id = %s""",
                     (customer_id, subscription_id, usuario_id),
                 )
+                if event_id:
+                    cursor.execute(
+                        "UPDATE stripe_eventos SET processado_em = NOW() WHERE event_id = %s",
+                        (event_id,),
+                    )
                 conn.commit()
             finally:
                 cursor.close()

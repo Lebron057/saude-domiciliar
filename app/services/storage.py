@@ -265,3 +265,4 @@ def stream_file(bucket_name: str, key: str):
     """
     client = get_storage_client()
     return client.get_object(bucket_name, key)
+
