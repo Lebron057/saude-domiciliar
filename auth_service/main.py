@@ -117,10 +117,18 @@ async def register(data: RegisterRequest):
             detail="A senha deve ter no mínimo 6 caracteres.",
         )
 
-    # Validar role (padrão 'user', permitindo 'admin')
+    # Validar role (bloqueando autocadastro de admin)
+    VALID_PUBLIC_ROLES = ("familiar_paciente", "profissional_saude", "fornecedor_equipamento")
     user_role = data.role.strip().lower()
-    if user_role not in ("user", "admin"):
-        user_role = "user"
+
+    if user_role == "admin":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cadastro com papel de administrador não é permitido via registro público.",
+        )
+
+    if user_role not in VALID_PUBLIC_ROLES:
+        user_role = "familiar_paciente"
 
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
@@ -172,7 +180,7 @@ async def login(data: LoginRequest):
 
     try:
         cursor.execute(
-            "SELECT id, nome, email, senha_hash, role, premium FROM usuarios WHERE email = %s",
+            "SELECT id, nome, email, senha_hash, role, premium, ativo FROM usuarios WHERE email = %s",
             (data.email.strip().lower(),),
         )
         usuario = cursor.fetchone()
@@ -183,7 +191,13 @@ async def login(data: LoginRequest):
                 detail="E-mail ou senha incorretos.",
             )
 
-        user_role = usuario.get("role") or "user"
+        if not usuario.get("ativo", True):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Conta suspensa ou inativa. Entre em contato com o suporte.",
+            )
+
+        user_role = usuario.get("role") or "familiar_paciente"
         is_premium = bool(usuario.get("premium", False))
         token = create_access_token(
             usuario_id=usuario["id"],
@@ -208,6 +222,7 @@ async def login(data: LoginRequest):
                 nome=usuario["nome"],
                 email=usuario["email"],
                 role=user_role,
+                ativo=bool(usuario.get("ativo", True)),
                 premium=is_premium,
             ),
         )
@@ -257,7 +272,7 @@ async def verify_session(
     cursor = conn.cursor(dictionary=True)
     try:
         cursor.execute(
-            "SELECT id, nome, email, role, premium FROM usuarios WHERE id = %s",
+            "SELECT id, nome, email, role, premium, ativo FROM usuarios WHERE id = %s",
             (int(payload["sub"]),),
         )
         usuario = cursor.fetchone()
@@ -271,11 +286,18 @@ async def verify_session(
             detail="Usuário não encontrado.",
         )
 
+    if not usuario.get("ativo", True):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Conta suspensa ou inativa.",
+        )
+
     return UserResponse(
         id=usuario["id"],
         nome=usuario["nome"],
         email=usuario["email"],
-        role=usuario.get("role") or "user",
+        role=usuario.get("role") or "familiar_paciente",
+        ativo=bool(usuario.get("ativo", True)),
         premium=bool(usuario.get("premium", False)),
     )
 

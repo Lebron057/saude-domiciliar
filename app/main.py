@@ -30,6 +30,7 @@ from app.auth import (
     validate_reset_token,
     reset_password,
 )
+from app.deps import require_roles, require_verified_professional, require_owner_or_admin
 from app.minio_client import ensure_bucket, upload_avatar, delete_avatar, stream_avatar, MINIO_BUCKET
 from minio.error import S3Error
 import stripe
@@ -213,6 +214,7 @@ async def register_submit(
     nome: str = Form(...),
     email: str = Form(...),
     senha: str = Form(...),
+    role: str = Form("familiar_paciente"),
 ):
     if len(senha) < 6:
         return templates.TemplateResponse("register.html", {
@@ -221,7 +223,7 @@ async def register_submit(
             "error": "A senha deve ter no mínimo 6 caracteres.",
         })
 
-    result = await register_user(nome=nome, email=email, senha=senha, role="user")
+    result = await register_user(nome=nome, email=email, senha=senha, role=role)
 
     if not result.get("success"):
         return templates.TemplateResponse("register.html", {

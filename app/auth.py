@@ -22,7 +22,7 @@ async def login_user(email: str, senha: str) -> dict:
             return {"success": False, "error": f"Serviço de autenticação indisponível: {e}"}
 
 
-async def register_user(nome: str, email: str, senha: str, role: str = "user") -> dict:
+async def register_user(nome: str, email: str, senha: str, role: str = "familiar_paciente") -> dict:
     """Repassa o registro de novo usuário para o auth-service."""
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
