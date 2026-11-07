@@ -31,8 +31,24 @@ from app.auth import (
     reset_password,
 )
 from app.deps import require_roles, require_verified_professional, require_owner_or_admin
-from app.minio_client import ensure_bucket, upload_avatar, delete_avatar, stream_avatar, MINIO_BUCKET
-from minio.error import S3Error
+from app.services.storage import (
+    ensure_buckets,
+    upload_file,
+    delete_file,
+    stream_file,
+    validate_file_upload,
+    generate_key,
+    S3_BUCKET_AVATARS,
+    S3_BUCKET_EQUIPAMENTOS,
+    S3_BUCKET_CREDENCIAIS,
+    S3_BUCKET_DOCUMENTOS,
+    ALLOWED_IMAGE_MIMES,
+    ALLOWED_DOCUMENT_MIMES,
+    MAX_AVATAR_BYTES,
+    MAX_EQUIPAMENTO_BYTES,
+    MAX_DOCUMENT_BYTES,
+    S3Error,
+)
 import stripe
 from app.stripe_service import (
     create_premium_checkout_session,
@@ -40,13 +56,11 @@ from app.stripe_service import (
     is_stripe_configured,
 )
 
-# ── Configuração do MinIO ────────────────────────────────
-MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "minio:9000")
+# ── Configurações de Armazenamento e Limites ─────────────
+MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "garage:9000")
 MINIO_SECURE = os.getenv("MINIO_SECURE", "false").lower() == "true"
-# Tamanho máximo de upload: 3 MB
-MAX_UPLOAD_BYTES = 3 * 1024 * 1024
-# MIME types permitidos para foto de perfil
-ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+MAX_UPLOAD_BYTES = MAX_AVATAR_BYTES
+ALLOWED_MIME_TYPES = ALLOWED_IMAGE_MIMES
 
 
 # ── Configuração do Log Service ─────────────────────────
@@ -56,15 +70,15 @@ LOG_SERVICE_URL = os.getenv("LOG_SERVICE_URL", "http://log-service:8002").rstrip
 # ── Lifespan ────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: garante que as tabelas existam e o bucket MinIO esteja pronto
+    # Startup: garante que as tabelas existam e os buckets S3 estejam provisionados
     try:
         init_db()
     except Exception as e:
         print(f"[CatalogService] Aviso ao inicializar banco: {e}")
     try:
-        ensure_bucket()
+        ensure_buckets()
     except Exception as e:
-        print(f"[CatalogService] Aviso ao inicializar MinIO: {e}")
+        print(f"[CatalogService] Aviso ao inicializar storage S3: {e}")
     yield
 
 
@@ -695,29 +709,29 @@ async def profile_upload(
 
     # ── Processar upload de imagem (se enviado) ──
     if foto and foto.filename:
-        # Garante que o bucket exista (lazy init — caso o Garage não estivesse
-        # pronto quando o catalog-service iniciou)
         try:
-            ensure_bucket()
+            ensure_buckets()
         except Exception as _bucket_err:
             return RedirectResponse(
-                url=f"/profile/{profile_user_id}?error=Storage+indisponível.+Tente+novamente+em+instantes.",
-                status_code=302,
-            )
-
-        # Validação de MIME type no backend
-        if foto.content_type not in ALLOWED_MIME_TYPES:
-            return RedirectResponse(
-                url=f"/profile/{profile_user_id}?error=Tipo+de+arquivo+inválido.+Envie+uma+imagem+JPEG,+PNG,+WEBP+ou+GIF.",
+                url=f"/profile/{profile_user_id}?error=Storage+indispon%C3%ADvel.+Tente+novamente+em+instantes.",
                 status_code=302,
             )
 
         file_bytes = await foto.read()
 
-        # Validação de tamanho no backend (≤ 3 MB)
-        if len(file_bytes) > MAX_UPLOAD_BYTES:
+        # Validação profunda: MIME type, tamanho (≤ 3 MB) e verificação de magic bytes
+        is_valid, msg_or_mime, ext = validate_file_upload(
+            file_bytes=file_bytes,
+            filename=foto.filename,
+            content_type=foto.content_type,
+            allowed_mime_types=ALLOWED_IMAGE_MIMES,
+            max_bytes=MAX_AVATAR_BYTES,
+        )
+        if not is_valid:
+            import urllib.parse
+            err_enc = urllib.parse.quote_plus(msg_or_mime)
             return RedirectResponse(
-                url=f"/profile/{profile_user_id}?error=Arquivo+muito+grande.+Limite+máximo:+3+MB.",
+                url=f"/profile/{profile_user_id}?error={err_enc}",
                 status_code=302,
             )
 
@@ -732,15 +746,16 @@ async def profile_upload(
             cursor.close()
             conn.close()
 
-        # Upload da nova imagem para o MinIO
+        # Upload da nova imagem para o S3 (bucket avatars)
+        new_key = generate_key("avatars", user["id"], ext)
         try:
-            new_avatar_key = upload_avatar(
-                user_id=user["id"],
+            new_avatar_key = upload_file(
+                bucket_name=S3_BUCKET_AVATARS,
+                key=new_key,
                 file_bytes=file_bytes,
-                filename=foto.filename,
-                content_type=foto.content_type,
+                content_type=msg_or_mime,
             )
-        except S3Error as e:
+        except Exception as e:
             return RedirectResponse(
                 url=f"/profile/{profile_user_id}?error=Erro+ao+enviar+imagem+para+o+storage.",
                 status_code=302,
@@ -748,7 +763,7 @@ async def profile_upload(
 
         # Remover avatar anterior do MinIO (best-effort)
         if old_key:
-            delete_avatar(old_key)
+            delete_file(S3_BUCKET_AVATARS, old_key)
 
     # ── Persistir bio e/ou nova chave do avatar no MariaDB ──
     conn = get_connection()
@@ -784,20 +799,489 @@ async def profile_upload(
     )
 
 
+# ══════════════════════════════════════════════════════════
+#  ROTAS DE STORAGE S3 / GARAGE — PROXIES PÚBLICOS E PRIVADOS (Fase 3)
+# ══════════════════════════════════════════════════════════
+
 @app.get("/storage/avatars/{filename}")
 async def serve_avatar(filename: str):
     """
-    Proxy interno para servir imagens armazenadas no MinIO.
-    O MinIO não expõe porta pública no host; o catalog-service faz o proxy.
-    Isso segue o mesmo padrão do proxy /grafana descrito no auxiliar.
+    Proxy interno para servir imagens do bucket 'avatars'.
+    Cache público com TTL de 24h e proteção nosniff.
     """
-    key = f"avatars/{filename}"
+    key = f"avatars/{filename}" if not filename.startswith("avatars/") else filename
     try:
-        response = stream_avatar(key)
+        response = stream_file(S3_BUCKET_AVATARS, key)
         content_type = response.headers.get("Content-Type", "image/jpeg")
         data = response.read()
         response.close()
         response.release_conn()
-        return Response(content=data, media_type=content_type)
-    except S3Error:
+        return Response(
+            content=data,
+            media_type=content_type,
+            headers={
+                "Cache-Control": "public, max-age=86400",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
+    except Exception:
         raise HTTPException(status_code=404, detail="Imagem não encontrada.")
+
+
+@app.get("/storage/equipamentos/{equipamento_id}/{filename}")
+async def serve_equipamento_foto(equipamento_id: int, filename: str):
+    """
+    Proxy interno público para fotos do catálogo de equipamentos ortopédicos.
+    """
+    key = f"equipamentos/{equipamento_id}/{filename}"
+    try:
+        response = stream_file(S3_BUCKET_EQUIPAMENTOS, key)
+        content_type = response.headers.get("Content-Type", "image/jpeg")
+        data = response.read()
+        response.close()
+        response.release_conn()
+        return Response(
+            content=data,
+            media_type=content_type,
+            headers={
+                "Cache-Control": "public, max-age=86400",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
+    except Exception:
+        raise HTTPException(status_code=404, detail="Foto de equipamento não encontrada.")
+
+
+@app.get("/documentos/credenciais/{credencial_id}")
+async def get_documento_credencial(request: Request, credencial_id: int):
+    """
+    Proxy autenticado para credenciais de profissionais de saúde (COREN, diplomas).
+    Controle estrito RBAC/IDOR:
+      - Acessível APENAS pelo profissional dono da credencial ou por administradores.
+      - Usuários do tipo familiar_paciente ou terceiros recebem HTTP 403 Forbidden.
+    """
+    user = await _get_user_or_none(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Autenticação obrigatória.")
+
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            "SELECT id, usuario_id, tipo, object_key, mime, status FROM credenciais WHERE id = %s",
+            (credencial_id,),
+        )
+        credencial = cursor.fetchone()
+    finally:
+        cursor.close()
+        conn.close()
+
+    if not credencial:
+        raise HTTPException(status_code=404, detail="Credencial não encontrada.")
+
+    # Enforcement de RBAC / IDOR
+    is_admin = (user.get("role") == "admin")
+    is_owner = (user.get("id") == credencial["usuario_id"])
+
+    if not (is_admin or is_owner):
+        await _emit_log(
+            usuario_id=user["id"],
+            acao="audit.security.access_denied",
+            detalhe=f"tentativa de acessar credencial {credencial_id} do usuario_id={credencial['usuario_id']} (403)",
+            ip_origem=_get_client_ip(request),
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="Acesso negado: apenas o profissional titular ou administradores podem acessar esta credencial.",
+        )
+
+    # Obter stream do objeto no bucket privado de credenciais
+    try:
+        response = stream_file(S3_BUCKET_CREDENCIAIS, credencial["object_key"])
+        data = response.read()
+        response.close()
+        response.release_conn()
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"Arquivo de credencial não encontrado no storage: {e}")
+
+    await _emit_log(
+        usuario_id=user["id"],
+        acao="documento.acessado",
+        detalhe=f"credencial_id={credencial_id}, tipo={credencial['tipo']}, status={credencial['status']}",
+        ip_origem=_get_client_ip(request),
+    )
+
+    mime = credencial.get("mime") or "application/pdf"
+    ext = "pdf" if "pdf" in mime else "jpg"
+    filename = f"credencial_{credencial['tipo']}_{credencial_id}.{ext}"
+
+    return Response(
+        content=data,
+        media_type=mime,
+        headers={
+            "Content-Disposition": f"inline; filename=\"{filename}\"",
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, no-transform, no-store",
+        },
+    )
+
+
+@app.get("/documentos/laudos/{documento_id}")
+async def get_documento_laudo(request: Request, documento_id: int):
+    """
+    Proxy autenticado para laudos médicos e prescrições de pacientes (LGPD / Dados Sensíveis).
+    Controle RBAC/ABAC:
+      - Administrador tem acesso total para fins de auditoria/suporte.
+      - Familiar responsável pelo paciente tem acesso.
+      - Profissional de saúde tem acesso se e somente se possuir plantão confirmado/em andamento com o paciente.
+      - Terceiros recebem HTTP 403 Forbidden.
+    """
+    user = await _get_user_or_none(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Autenticação obrigatória.")
+
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """
+            SELECT d.id, d.paciente_id, d.locacao_id, d.criado_por, d.tipo, d.object_key, d.mime,
+                   p.familiar_id, p.nome AS paciente_nome
+            FROM documentos d
+            LEFT JOIN pacientes p ON d.paciente_id = p.id
+            WHERE d.id = %s
+            """,
+            (documento_id,),
+        )
+        doc = cursor.fetchone()
+
+        if not doc:
+            raise HTTPException(status_code=404, detail="Documento médico não encontrado.")
+
+        is_admin = (user.get("role") == "admin")
+        is_familiar = (user.get("id") == doc.get("familiar_id") or user.get("id") == doc.get("criado_por"))
+        is_assigned_pro = False
+
+        if user.get("role") == "profissional_saude" and doc.get("paciente_id"):
+            cursor.execute(
+                """
+                SELECT id FROM plantoes
+                WHERE paciente_id = %s AND profissional_id = %s
+                  AND status IN ('aceito', 'confirmado', 'em_andamento')
+                LIMIT 1
+                """,
+                (doc["paciente_id"], user["id"]),
+            )
+            if cursor.fetchone():
+                is_assigned_pro = True
+    finally:
+        cursor.close()
+        conn.close()
+
+    if not (is_admin or is_familiar or is_assigned_pro):
+        await _emit_log(
+            usuario_id=user["id"],
+            acao="audit.security.access_denied",
+            detalhe=f"tentativa de acessar laudo medico documento_id={documento_id} do paciente_id={doc.get('paciente_id')} (403)",
+            ip_origem=_get_client_ip(request),
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="Acesso negado: documento sigiloso restrito ao familiar e ao profissional designado para o plantão.",
+        )
+
+    try:
+        response = stream_file(S3_BUCKET_DOCUMENTOS, doc["object_key"])
+        data = response.read()
+        response.close()
+        response.release_conn()
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"Arquivo não encontrado no storage: {e}")
+
+    await _emit_log(
+        usuario_id=user["id"],
+        acao="documento.acessado",
+        detalhe=f"documento_id={documento_id}, paciente_id={doc.get('paciente_id')}, tipo={doc.get('tipo')}",
+        ip_origem=_get_client_ip(request),
+    )
+
+    mime = doc.get("mime") or "application/pdf"
+    ext = "pdf" if "pdf" in mime else "jpg"
+    filename = f"laudo_{doc.get('tipo')}_{documento_id}.{ext}"
+
+    return Response(
+        content=data,
+        media_type=mime,
+        headers={
+            "Content-Disposition": f"attachment; filename=\"{filename}\"",
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, no-transform, no-store",
+        },
+    )
+
+
+@app.get("/documentos/vistoria/{movimentacao_id}")
+async def get_documento_vistoria(request: Request, movimentacao_id: int):
+    """
+    Proxy autenticado para fotos de vistoria e entrega de equipamentos ortopédicos.
+    Acessível apenas pelo cliente locatário, fornecedor do equipamento ou administrador.
+    """
+    user = await _get_user_or_none(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Autenticação obrigatória.")
+
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """
+            SELECT m.id, m.locacao_id, m.responsavel_id, m.tipo, m.foto_vistoria_key,
+                   l.cliente_id, eq.fornecedor_id
+            FROM movimentacoes_locacao m
+            JOIN locacoes l ON m.locacao_id = l.id
+            JOIN equipamentos eq ON l.equipamento_id = eq.id
+            WHERE m.id = %s
+            """,
+            (movimentacao_id,),
+        )
+        mov = cursor.fetchone()
+    finally:
+        cursor.close()
+        conn.close()
+
+    if not mov or not mov.get("foto_vistoria_key"):
+        raise HTTPException(status_code=404, detail="Registro ou foto de vistoria não encontrado.")
+
+    is_admin = (user.get("role") == "admin")
+    is_client = (user.get("id") == mov.get("cliente_id"))
+    is_supplier = (user.get("id") == mov.get("fornecedor_id"))
+
+    if not (is_admin or is_client or is_supplier):
+        await _emit_log(
+            usuario_id=user["id"],
+            acao="audit.security.access_denied",
+            detalhe=f"tentativa de acessar vistoria movimentacao_id={movimentacao_id} sem permissão (403)",
+            ip_origem=_get_client_ip(request),
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="Acesso negado: vistoria restrita ao locatário, fornecedor e administração.",
+        )
+
+    try:
+        response = stream_file(S3_BUCKET_DOCUMENTOS, mov["foto_vistoria_key"])
+        data = response.read()
+        response.close()
+        response.release_conn()
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"Arquivo não encontrado no storage: {e}")
+
+    await _emit_log(
+        usuario_id=user["id"],
+        acao="documento.acessado",
+        detalhe=f"vistoria_movimentacao_id={movimentacao_id}, locacao_id={mov.get('locacao_id')}",
+        ip_origem=_get_client_ip(request),
+    )
+
+    return Response(
+        content=data,
+        media_type="image/jpeg",
+        headers={
+            "Content-Disposition": f"inline; filename=\"vistoria_{movimentacao_id}.jpg\"",
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, no-transform, no-store",
+        },
+    )
+
+
+@app.post("/profissionais/credenciais/upload")
+async def upload_credencial_profissional(
+    request: Request,
+    tipo: str = Form(...),
+    documento: UploadFile = File(...),
+):
+    """
+    Upload de credencial de saúde (COREN, diploma, certidão de antecedentes).
+    Validação obrigatória de magic bytes: arquivos maliciosos (ex: executáveis com extensão .pdf)
+    são sumariamente rejeitados com HTTP 400 Bad Request.
+    """
+    user = await _get_user_or_none(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Autenticação obrigatória.")
+
+    if user.get("role") not in ("profissional_saude", "admin"):
+        raise HTTPException(status_code=403, detail="Apenas profissionais de saúde podem enviar credenciais.")
+
+    tipos_validos = {
+        "coren", "diploma", "antecedentes", "documento_identidade",
+        "comprovante_endereco", "certificado_curso", "cnpj_alvara",
+    }
+    if tipo not in tipos_validos:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Tipo de credencial inválido. Válidos: {', '.join(sorted(tipos_validos))}",
+        )
+
+    if not documento or not documento.filename:
+        raise HTTPException(status_code=400, detail="Nenhum arquivo enviado.")
+
+    file_bytes = await documento.read()
+
+    # Validação profunda: extensão, tamanho e magic bytes
+    is_valid, msg_or_mime, ext = validate_file_upload(
+        file_bytes=file_bytes,
+        filename=documento.filename,
+        content_type=documento.content_type,
+        allowed_mime_types=ALLOWED_DOCUMENT_MIMES,
+        max_bytes=MAX_DOCUMENT_BYTES,
+    )
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=msg_or_mime)
+
+    key = generate_key(f"credenciais/{tipo}", user["id"], ext)
+
+    try:
+        upload_file(
+            bucket_name=S3_BUCKET_CREDENCIAIS,
+            key=key,
+            file_bytes=file_bytes,
+            content_type=msg_or_mime,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Falha ao salvar no storage: {e}")
+
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """
+            INSERT INTO credenciais (usuario_id, tipo, object_key, mime, tamanho_bytes, status)
+            VALUES (%s, %s, %s, %s, %s, 'pendente')
+            """,
+            (user["id"], tipo, key, msg_or_mime, len(file_bytes)),
+        )
+        credencial_id = cursor.lastrowid
+
+        # Atualiza status do perfil profissional para 'em_analise' caso estivesse 'pendente'
+        cursor.execute(
+            """
+            UPDATE perfis_profissionais
+            SET status_verificacao = 'em_analise'
+            WHERE usuario_id = %s AND status_verificacao = 'pendente'
+            """,
+            (user["id"],),
+        )
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+    await _emit_log(
+        usuario_id=user["id"],
+        acao="credencial.enviada",
+        detalhe=f"credencial_id={credencial_id}, tipo={tipo}, bytes={len(file_bytes)}",
+        ip_origem=_get_client_ip(request),
+    )
+
+    return {
+        "success": True,
+        "credencial_id": credencial_id,
+        "tipo": tipo,
+        "object_key": key,
+        "status": "pendente",
+        "message": "Credencial enviada com sucesso para análise.",
+    }
+
+
+@app.post("/pacientes/{paciente_id}/documentos/upload")
+async def upload_documento_paciente(
+    request: Request,
+    paciente_id: int,
+    tipo: str = Form("laudo_medico"),
+    descricao: str = Form(""),
+    documento: UploadFile = File(...),
+):
+    """
+    Upload de laudo médico ou prescrição de paciente vinculado ao familiar responsável.
+    """
+    user = await _get_user_or_none(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Autenticação obrigatória.")
+
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT familiar_id FROM pacientes WHERE id = %s", (paciente_id,))
+        paciente = cursor.fetchone()
+    finally:
+        cursor.close()
+        conn.close()
+
+    if not paciente:
+        raise HTTPException(status_code=404, detail="Paciente não encontrado.")
+
+    is_admin = (user.get("role") == "admin")
+    is_owner = (user.get("id") == paciente["familiar_id"])
+    if not (is_admin or is_owner):
+        raise HTTPException(
+            status_code=403,
+            detail="Acesso negado: apenas o familiar responsável ou administradores podem anexar laudos.",
+        )
+
+    if not documento or not documento.filename:
+        raise HTTPException(status_code=400, detail="Nenhum arquivo enviado.")
+
+    file_bytes = await documento.read()
+
+    is_valid, msg_or_mime, ext = validate_file_upload(
+        file_bytes=file_bytes,
+        filename=documento.filename,
+        content_type=documento.content_type,
+        allowed_mime_types=ALLOWED_DOCUMENT_MIMES,
+        max_bytes=MAX_DOCUMENT_BYTES,
+    )
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=msg_or_mime)
+
+    key = generate_key(f"pacientes/{paciente_id}/documentos", user["id"], ext)
+
+    try:
+        upload_file(
+            bucket_name=S3_BUCKET_DOCUMENTOS,
+            key=key,
+            file_bytes=file_bytes,
+            content_type=msg_or_mime,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Falha ao salvar no storage: {e}")
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            INSERT INTO documentos (paciente_id, criado_por, tipo, object_key, mime, tamanho_bytes, descricao)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """,
+            (paciente_id, user["id"], tipo, key, msg_or_mime, len(file_bytes), descricao.strip() or None),
+        )
+        doc_id = cursor.lastrowid
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+    await _emit_log(
+        usuario_id=user["id"],
+        acao="documento.enviado",
+        detalhe=f"documento_id={doc_id}, paciente_id={paciente_id}, tipo={tipo}",
+        ip_origem=_get_client_ip(request),
+    )
+
+    return {
+        "success": True,
+        "documento_id": doc_id,
+        "tipo": tipo,
+        "object_key": key,
+        "message": "Documento médico anexado com sucesso.",
+    }
