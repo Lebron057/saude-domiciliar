@@ -68,3 +68,4 @@ def format_centavos_brl(centavos: int) -> str:
     reais = centavos / 100.0
     formatted = f"{reais:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     return f"R$ {formatted}"
+

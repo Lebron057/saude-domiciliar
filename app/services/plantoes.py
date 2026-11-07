@@ -547,3 +547,4 @@ def cancelar_plantao(plantao_id: int, usuario_id: int, motivo: Optional[str] = N
     finally:
         cursor.close()
         conn.close()
+

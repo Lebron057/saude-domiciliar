@@ -86,9 +86,16 @@ app = FastAPI(title="CuidaHome — Saúde & Atendimento Domiciliar", lifespan=li
 
 # Incluir roteadores especializados
 from app.routers.plantoes import router as plantoes_router
+from app.routers.equipamentos import router as equipamentos_router
 from app.services.plantoes import confirmar_pagamento_plantao
+from app.services.locacoes import (
+    confirmar_pagamento_locacao,
+    renovar_locacao_mensal,
+    marcar_locacao_inadimplente,
+)
 
 app.include_router(plantoes_router)
+app.include_router(equipamentos_router)
 
 # Montar arquivos estáticos e templates
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -515,9 +522,43 @@ async def stripe_webhook(request: Request):
             )
             return {"status": "plantao_confirmed", "plantao_id": plantao_id}
 
-        # Roteamento 1B: Assinatura / Locação de Equipamentos ou Legado
-        usuario_id_str = session.get("client_reference_id") or metadata.get("usuario_id")
+        # Roteamento 1B: Assinatura de Locação de Equipamento com Caução (DoD 1)
+        if tipo == "locacao" and metadata.get("locacao_id"):
+            locacao_id = int(metadata["locacao_id"])
+            subscription_id = session.get("subscription")
+            customer_id = session.get("customer")
+            session_id = session.get("id")
 
+            confirmar_pagamento_locacao(
+                locacao_id=locacao_id,
+                stripe_subscription_id=subscription_id,
+                stripe_customer_id=customer_id,
+                stripe_session_id=session_id,
+            )
+
+            if event_id:
+                conn = get_connection()
+                cursor = conn.cursor()
+                try:
+                    cursor.execute(
+                        "UPDATE stripe_eventos SET processado_em = NOW() WHERE event_id = %s",
+                        (event_id,),
+                    )
+                    conn.commit()
+                finally:
+                    cursor.close()
+                    conn.close()
+
+            await _emit_log(
+                usuario_id=int(session.get("client_reference_id") or 0),
+                acao="locacao.assinatura_ativa",
+                detalhe=f"locacao_id={locacao_id}, subscription_id={subscription_id}",
+                ip_origem=_get_client_ip(request),
+            )
+            return {"status": "locacao_confirmed", "locacao_id": locacao_id}
+
+        # Roteamento 1C: Legado (usuário individual)
+        usuario_id_str = session.get("client_reference_id") or metadata.get("usuario_id")
         if usuario_id_str:
             usuario_id = int(usuario_id_str)
             customer_id = session.get("customer")
@@ -549,7 +590,64 @@ async def stripe_webhook(request: Request):
                 ip_origem=_get_client_ip(request),
             )
 
-    # Evento 2: Assinatura cancelada ou expirada
+    # Evento 2: Renovação periódica de locação via ciclo de assinatura (DoD 2)
+    elif event_type == "invoice.paid":
+        invoice = event["data"]["object"]
+        billing_reason = invoice.get("billing_reason")
+        subscription_id = invoice.get("subscription")
+
+        if billing_reason == "subscription_cycle" and subscription_id:
+            loc = renovar_locacao_mensal(subscription_id)
+            if loc:
+                await _emit_log(
+                    usuario_id=loc["cliente_id"],
+                    acao="locacao.renovada",
+                    detalhe=f"locacao_id={loc['id']}, subscription_id={subscription_id}",
+                    ip_origem=_get_client_ip(request),
+                )
+            return {"status": "subscription_renewed", "subscription_id": subscription_id}
+
+    # Evento 3: Falha de pagamento da fatura recorrente
+    elif event_type == "invoice.payment_failed":
+        invoice = event["data"]["object"]
+        subscription_id = invoice.get("subscription")
+        if subscription_id:
+            loc = marcar_locacao_inadimplente(subscription_id)
+            if loc:
+                await _emit_log(
+                    usuario_id=loc["cliente_id"],
+                    acao="locacao.inadimplente",
+                    detalhe=f"locacao_id={loc['id']}, subscription_id={subscription_id}",
+                    ip_origem=_get_client_ip(request),
+                )
+            return {"status": "locacao_inadimplente", "subscription_id": subscription_id}
+
+    # Evento 4: Atualização de caução autorizada (PaymentIntent capturable)
+    elif event_type == "payment_intent.amount_capturable_updated":
+        pi = event["data"]["object"]
+        metadata = pi.get("metadata") or {}
+        if metadata.get("tipo") == "caucao" and metadata.get("locacao_id"):
+            locacao_id = int(metadata["locacao_id"])
+            conn = get_connection()
+            cursor = conn.cursor()
+            try:
+                cursor.execute(
+                    """
+                    UPDATE caucoes
+                    SET status = 'autorizada',
+                        stripe_payment_intent_id = %s,
+                        capture_before = DATE_ADD(NOW(), INTERVAL 7 DAY)
+                    WHERE locacao_id = %s
+                    """,
+                    (pi.get("id"), locacao_id),
+                )
+                conn.commit()
+            finally:
+                cursor.close()
+                conn.close()
+            return {"status": "caucao_authorized", "locacao_id": locacao_id}
+
+    # Evento 5: Assinatura cancelada ou encerrada
     elif event_type in ("customer.subscription.deleted", "customer.subscription.paused"):
         subscription = event["data"]["object"]
         subscription_id = subscription.get("id")
@@ -559,6 +657,10 @@ async def stripe_webhook(request: Request):
             try:
                 cursor.execute(
                     "UPDATE usuarios SET premium = FALSE WHERE stripe_subscription_id = %s",
+                    (subscription_id,),
+                )
+                cursor.execute(
+                    "UPDATE locacoes SET status = 'encerrada' WHERE stripe_subscription_id = %s AND status != 'encerrada'",
                     (subscription_id,),
                 )
                 conn.commit()

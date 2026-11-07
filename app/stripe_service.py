@@ -124,6 +124,127 @@ def create_plantao_checkout_session(
     return session
 
 
+def create_subscription_checkout_session(
+    locacao_id: int,
+    stripe_price_id: str,
+    cliente_id: int,
+    user_email: str,
+    base_url: str,
+) -> stripe.checkout.Session:
+    """
+    Cria uma Checkout Session no Stripe em mode='subscription' para locação mensal de equipamento.
+    Configura metadados para ativação da locação e provisionamento da caução via Webhook.
+    """
+    if not is_stripe_configured():
+        raise ValueError("Stripe API Key não configurada. Defina STRIPE_API_KEY no arquivo .env.")
+
+    stripe.api_key = STRIPE_API_KEY
+
+    success_url = f"{base_url.rstrip('/')}/painel/familia?locacao_sucesso=true&locacao_id={locacao_id}"
+    cancel_url = f"{base_url.rstrip('/')}/equipamentos?locacao_cancelada=true&locacao_id={locacao_id}"
+
+    session_params = {
+        "payment_method_types": ["card"],
+        "mode": "subscription",
+        "line_items": [
+            {
+                "price": stripe_price_id,
+                "quantity": 1,
+            }
+        ],
+        "client_reference_id": str(cliente_id),
+        "metadata": {
+            "tipo": "locacao",
+            "locacao_id": str(locacao_id),
+            "cliente_id": str(cliente_id),
+        },
+        "subscription_data": {
+            "metadata": {
+                "tipo": "locacao",
+                "locacao_id": str(locacao_id),
+            }
+        },
+        "success_url": success_url,
+        "cancel_url": cancel_url,
+    }
+
+    if user_email and "@" in user_email and "." in user_email.split("@")[-1]:
+        session_params["customer_email"] = user_email
+
+    session = stripe.checkout.Session.create(**session_params)
+    return session
+
+
+def criar_autorizacao_caucao(
+    locacao_id: int,
+    valor_caucao_centavos: int,
+    customer_id: str,
+    payment_method_id: Optional[str] = None,
+) -> Optional[stripe.PaymentIntent]:
+    """
+    Cria uma pré-autorização de garantia/caução no cartão com capture_method='manual' (Opção A).
+    Não debita fundos imediatamente; apenas reserva o limite de garantia.
+    """
+    if not is_stripe_configured():
+        return None
+
+    stripe.api_key = STRIPE_API_KEY
+
+    params = {
+        "amount": valor_caucao_centavos,
+        "currency": "brl",
+        "customer": customer_id,
+        "capture_method": "manual",
+        "metadata": {
+            "tipo": "caucao",
+            "locacao_id": str(locacao_id),
+        },
+    }
+
+    if payment_method_id:
+        params["payment_method"] = payment_method_id
+        params["confirm"] = True
+        params["off_session"] = True
+
+    try:
+        return stripe.PaymentIntent.create(**params)
+    except Exception as e:
+        print(f"[Stripe] Aviso ao autorizar caução da locacao_id={locacao_id}: {e}")
+        return None
+
+
+def cancelar_autorizacao_caucao(payment_intent_id: str) -> bool:
+    """
+    Cancela a autorização de caução (hold), liberando o saldo do cliente sem qualquer cobrança.
+    """
+    if not is_stripe_configured() or not payment_intent_id or payment_intent_id.startswith("pi_caucao_loc_"):
+        return True
+
+    stripe.api_key = STRIPE_API_KEY
+    try:
+        stripe.PaymentIntent.cancel(payment_intent_id)
+        return True
+    except Exception as e:
+        print(f"[Stripe] Aviso ao cancelar autorização {payment_intent_id}: {e}")
+        return False
+
+
+def cancelar_assinatura_locacao(subscription_id: str, cancel_at_period_end: bool = True) -> bool:
+    """
+    Encerra a renovação automática da assinatura mensal da locação.
+    """
+    if not is_stripe_configured() or not subscription_id:
+        return True
+
+    stripe.api_key = STRIPE_API_KEY
+    try:
+        stripe.Subscription.modify(subscription_id, cancel_at_period_end=cancel_at_period_end)
+        return True
+    except Exception as e:
+        print(f"[Stripe] Aviso ao encerrar assinatura {subscription_id}: {e}")
+        return False
+
+
 def verify_and_construct_webhook_event(
     payload: bytes,
     sig_header: str,

@@ -390,3 +390,4 @@ async def rota_cancelar(
         }
     except BusinessRuleError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
