@@ -33,26 +33,31 @@ docker run --rm -v "${PWD}/backups:/backups" mariadb:11.8 `
 
 ---
 
-## 2. Procedimento de Atualização no Portainer
+## 2. Procedimento de Atualização no Portainer (Fluxo Docker Hub)
 
-### 2.1 Acessar a Stack no Portainer
-1. Acesse: `https://portainer.lapps.studio`
-2. Efetue login com suas credenciais: `IAC_2026_02_iago_lima`
-3. No menu lateral esquerdo, clique em **Stacks**.
-4. Selecione a sua stack ativa (`iago-lima` ou nome equivalente).
+Como a stack no Portainer utiliza imagens pré-compiladas do Docker Hub gerenciadas pela aba **Editor (Compose Direto)**:
 
-### 2.2 Atualizar Configurações do Repositório Git
-1. No topo da visualização da stack, clique no botão **Edit stack settings** (ou aba **Editor**).
-2. Na seção de configuração do Git:
-   * **Repository URL:** `https://github.com/Lebron057/saude-domiciliar.git`
-   * **Repository reference:** `refs/heads/main`
-   * **Compose path:** `docker-compose.yml`
-3. *(Opcional)* Ative **Automatic updates** (GitOps Polling a cada 5 minutos) caso deseje deploys automáticos em novos commits na branch `main`.
+### 2.1 Compilar e Enviar as Imagens (Local)
+No seu computador com o Docker Desktop ativo:
+```powershell
+.\scripts\build_and_push.ps1
+```
 
-> **Nota:** Se a versão do Portainer bloquear a alteração da URL do repositório em uma stack existente, exclua a stack **sem marcar a opção de remover volumes** e crie uma nova stack com o mesmo nome apontando para o repositório novo. Os volumes nomeados persistentes (`redis-data` e `garage-data`) serão reaproveitados intactos.
+### 2.2 Aplicar as Migrações no Banco de Dados
+Como o MariaDB possui conexão direta via porta 3306:
+```powershell
+python -m db.migrate
+```
+
+### 2.3 Atualizar o Compose na aba Editor do Portainer
+1. Acesse: `https://portainer.lapps.studio` -> Login `IAC_2026_02_iago_lima`
+2. No menu lateral esquerdo, clique em **Stacks** e selecione a sua stack.
+3. Clique na aba **Editor**.
+4. Atualize o conteúdo do YAML colando a nova definição de serviços (sem a porta 9050 do Garage, com os 4 buckets e sem variáveis do TMDB).
+5. Logo abaixo do editor de texto, ative a opção: **Re-pull image and redeploy**.
+6. Clique no botão **Update the stack**.
 
 ### 2.3 Atualizar Variáveis de Ambiente no Portainer
-Na aba de variáveis de ambiente (**Environment variables**) da stack, configure:
 
 | Variável | Ação | Valor Recomendado |
 |---|---|---|

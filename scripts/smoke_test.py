@@ -11,13 +11,19 @@ import urllib.error
 import json
 
 
+class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
 def check_url(url: str, expected_statuses: tuple = (200,)) -> tuple[bool, int, str]:
     try:
         req = urllib.request.Request(
             url,
             headers={"User-Agent": "CuidaHome-SmokeTest/1.0"},
         )
-        with urllib.request.urlopen(req, timeout=10) as response:
+        opener = urllib.request.build_opener(NoRedirectHandler)
+        with opener.open(req, timeout=10) as response:
             status = response.getcode()
             body = response.read().decode("utf-8", errors="ignore")
             return (status in expected_statuses, status, body)
