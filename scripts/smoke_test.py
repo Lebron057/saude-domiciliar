@@ -47,6 +47,8 @@ def main():
     tests = [
         ("Healthcheck do Catalog Service", f"{base_url}/health", (200,), ["status", "ok"]),
         ("Página Inicial / Landing Page", f"{base_url}/", (200,), ["CuidaHome", "Saúde"]),
+        ("Catálogo de Equipamentos Ortopédicos", f"{base_url}/equipamentos", (200,), ["Equipamentos", "CuidaHome"]),
+        ("Mural de Profissionais de Saúde", f"{base_url}/profissionais", (200,), ["Profissionais", "CuidaHome"]),
         ("Redirecionamento do catálogo antigo (/catalog)", f"{base_url}/catalog", (200, 301, 302), []),
         ("Proteção da área de família sem login", f"{base_url}/painel/familia", (302, 401, 403), []),
     ]
