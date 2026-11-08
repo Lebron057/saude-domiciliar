@@ -33,8 +33,8 @@ services:
       - LOG_SERVICE_URL=${LOG_SERVICE_URL:-http://log-service:8002}
       # Storage S3 (MinIO)
       - MINIO_ENDPOINT=${MINIO_ENDPOINT:-garage:9000}
-      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-cuidahome_admin}
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-cuidahome_secret_2026}
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-GK6b0ba94e9e2e8921e8b3b2a4}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-4b8f2c1d9e3a7b6f5c4d2e1a8b7f6e5d4c3b2a1f9e8d7c6b5a4f3e2d1c0b9a8f}
       - MINIO_BUCKET=${MINIO_BUCKET:-avatars}
       - S3_BUCKET_AVATARS=${S3_BUCKET_AVATARS:-avatars}
       - S3_BUCKET_EQUIPAMENTOS=${S3_BUCKET_EQUIPAMENTOS:-equipamentos}
@@ -125,13 +125,13 @@ services:
     container_name: garage-iago
     command: server /data --console-address ":9001"
     environment:
-      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-cuidahome_admin}
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-cuidahome_secret_2026}
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-GK6b0ba94e9e2e8921e8b3b2a4}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-4b8f2c1d9e3a7b6f5c4d2e1a8b7f6e5d4c3b2a1f9e8d7c6b5a4f3e2d1c0b9a8f}
     expose:
       - "9000"
       - "9001"
     volumes:
-      - garage-data:/data
+      - minio-data:/data
     networks:
       - internal-net
     healthcheck:
@@ -162,4 +162,4 @@ networks:
 
 volumes:
   redis-data:
-  garage-data:
+  minio-data:

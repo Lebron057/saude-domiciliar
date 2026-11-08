@@ -35,8 +35,8 @@ except ImportError:
 
 # ── Configuração de Conexão S3 / Garage ──────────────────────────────
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "garage:9000")
-MINIO_ACCESS_KEY = os.getenv("MINIO_ROOT_USER", "cuidahome_admin")
-MINIO_SECRET_KEY = os.getenv("MINIO_ROOT_PASSWORD", "cuidahome_secret_2026")
+MINIO_ACCESS_KEY = os.getenv("MINIO_ROOT_USER", "GK6b0ba94e9e2e8921e8b3b2a4")
+MINIO_SECRET_KEY = os.getenv("MINIO_ROOT_PASSWORD", "4b8f2c1d9e3a7b6f5c4d2e1a8b7f6e5d4c3b2a1f9e8d7c6b5a4f3e2d1c0b9a8f")
 _secure = os.getenv("MINIO_SECURE", "false").lower() == "true"
 
 # ── Nomes dos Buckets Especializados ────────────────────────────────
