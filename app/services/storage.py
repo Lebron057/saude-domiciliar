@@ -35,8 +35,8 @@ except ImportError:
 
 # ── Configuração de Conexão S3 / Garage ──────────────────────────────
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "garage:9000")
-MINIO_ACCESS_KEY = os.getenv("MINIO_ROOT_USER", "minioadmin")
-MINIO_SECRET_KEY = os.getenv("MINIO_ROOT_PASSWORD", "minioadmin")
+MINIO_ACCESS_KEY = os.getenv("MINIO_ROOT_USER", "cuidahome_admin")
+MINIO_SECRET_KEY = os.getenv("MINIO_ROOT_PASSWORD", "cuidahome_secret_2026")
 _secure = os.getenv("MINIO_SECURE", "false").lower() == "true"
 
 # ── Nomes dos Buckets Especializados ────────────────────────────────
@@ -237,7 +237,7 @@ def check_storage_health() -> dict:
                 "status": "error",
                 "code": e.code,
                 "message": e.message,
-                "hint": "Verifique se a chave de acesso (MINIO_ROOT_USER) foi importada no Garage com 'garage key import' e autorizada no bucket com 'garage bucket allow'."
+                "hint": "Verifique se as credenciais (MINIO_ROOT_USER e MINIO_ROOT_PASSWORD) configuradas na Stack correspondem às do serviço S3.",
             }
         except Exception as e:
             results[bucket] = {"status": "unreachable", "detail": str(e)}

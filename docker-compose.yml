@@ -31,10 +31,10 @@ services:
       - SECRET_KEY=${SECRET_KEY}
       - AUTH_SERVICE_URL=${AUTH_SERVICE_URL:-http://auth-service:8001}
       - LOG_SERVICE_URL=${LOG_SERVICE_URL:-http://log-service:8002}
-      # Garage / S3
+      # Storage S3 (MinIO)
       - MINIO_ENDPOINT=${MINIO_ENDPOINT:-garage:9000}
-      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-cuidahome_admin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-cuidahome_secret_2026}
       - MINIO_BUCKET=${MINIO_BUCKET:-avatars}
       - S3_BUCKET_AVATARS=${S3_BUCKET_AVATARS:-avatars}
       - S3_BUCKET_EQUIPAMENTOS=${S3_BUCKET_EQUIPAMENTOS:-equipamentos}
@@ -121,104 +121,26 @@ services:
     restart: unless-stopped
 
   garage:
-    image: alpine:latest
+    image: minio/minio:RELEASE.2023-09-07T02-12-19Z
     container_name: garage-iago
+    command: server /data --console-address ":9001"
     environment:
-      - GARAGE_RPC_SECRET=${GARAGE_RPC_SECRET}
-      - GARAGE_KEY_ID=${MINIO_ROOT_USER}
-      - GARAGE_KEY_SECRET=${MINIO_ROOT_PASSWORD}
-    command:
-      - sh
-      - -c
-      - |
-        apk add --no-cache wget
-        wget -q https://garagehq.deuxfleurs.fr/_releases/v0.9.1/x86_64-unknown-linux-musl/garage -O /usr/local/bin/garage
-        chmod +x /usr/local/bin/garage
-
-        cat > /etc/garage.toml <<EOF
-        metadata_dir = "/var/lib/garage/meta"
-        data_dir = "/var/lib/garage/data"
-        db_engine = "lmdb"
-        replication_mode = "none"
-        rpc_bind_addr = "[::]:3901"
-        rpc_public_addr = "127.0.0.1:3901"
-        rpc_secret = "$$GARAGE_RPC_SECRET"
-
-        [s3_api]
-        s3_region = "us-east-1"
-        api_bind_addr = "[::]:9000"
-        root_domain = ".s3.garage.localhost"
-        path_style = true
-        EOF
-
-        garage server &
-        
-        # 1. Aguarda o daemon Garage inicializar e responder
-        echo "[Garage Init] Aguardando daemon Garage inicializar..."
-        for i in $$(seq 1 30); do
-          if garage status >/dev/null 2>&1; then
-            echo "[Garage Init] Daemon Garage ativo e respondendo!"
-            break
-          fi
-          sleep 1
-        done
-
-        # 2. Configura layout do nó (se ainda não aplicado)
-        NODE_ID=$$(garage node id 2>/dev/null | head -n1 | cut -d@ -f1)
-        if [ -n "$$NODE_ID" ]; then
-          garage layout assign -z dc1 -c 1G "$$NODE_ID" || true
-          garage layout apply --version 1 || true
-        fi
-
-        # 3. Importa ou garante chave de acesso S3
-        if [ -n "$$GARAGE_KEY_ID" ] && [ -n "$$GARAGE_KEY_SECRET" ]; then
-          echo "[Garage Init] Importando chave de acesso informada: $$GARAGE_KEY_ID..."
-          garage key import -n appkey --yes "$$GARAGE_KEY_ID" "$$GARAGE_KEY_SECRET" || \
-          garage key import --yes "$$GARAGE_KEY_ID" "$$GARAGE_KEY_SECRET" || true
-        fi
-
-        # Se não existe nenhuma chave ainda, cria uma chave chamada appkey
-        if ! garage key list 2>/dev/null | grep -q "GK"; then
-          echo "[Garage Init] Nenhuma chave encontrada. Criando chave 'appkey'..."
-          garage key create appkey || true
-        fi
-
-        # 4. Criação e liberação dos 4 buckets da nova aplicação
-        KEYS=$$(garage key list 2>/dev/null | grep -E "^GK[0-9a-fA-F]+" | awk '{print $$1}')
-        for b in avatars equipamentos credenciais documentos; do
-          echo "[Garage Init] Configurando bucket: $$b..."
-          garage bucket create "$$b" || true
-          
-          if [ -n "$$GARAGE_KEY_ID" ]; then
-            garage bucket allow --read --write --owner "$$b" --key "$$GARAGE_KEY_ID" || true
-          fi
-          garage bucket allow --read --write --owner "$$b" --key appkey || true
-          for k in $$KEYS; do
-            garage bucket allow --read --write --owner "$$b" --key "$$k" || true
-          done
-        done
-
-        echo "=== [Garage Init] DIAGNÓSTICO DO STORAGE ==="
-        echo "Chaves cadastradas no Garage:"
-        garage key list || true
-        echo "Buckets cadastrados no Garage:"
-        garage bucket list || true
-        echo "============================================"
-
-        wait
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-cuidahome_admin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-cuidahome_secret_2026}
     expose:
       - "9000"
+      - "9001"
     volumes:
-      - garage-data:/var/lib/garage
+      - garage-data:/data
     networks:
       - internal-net
-    restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "garage -c /etc/garage.toml status || exit 1"]
-      interval: 15s
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 60s
+      start_period: 15s
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine

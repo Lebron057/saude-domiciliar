@@ -70,8 +70,7 @@ python -m db.migrate
 | `SECRET_KEY` | Rotacionar | Gerar uma nova chave aleatória para invalidar sessões antigas |
 | `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | **Manter** | Credenciais originais do seu MariaDB |
 | `APP_PORT` | **Manter** | `8210` (obrigatória para o roteamento do túnel FRP) |
-| `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` | **Manter** | Credenciais do Garage já configuradas |
-| `GARAGE_RPC_SECRET` | **Manter** | Segredo RPC original |
+| `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` | **Configurar** | `cuidahome_admin` e `cuidahome_secret_2026` (ou credenciais de sua preferência) |
 | `STRIPE_API_KEY`, `STRIPE_WEBHOOK_SECRET` | **Manter** | Suas chaves de teste da Stripe |
 
 ### 2.4 Executar o Redeploy
