@@ -48,6 +48,7 @@ from app.services.storage import (
     MAX_EQUIPAMENTO_BYTES,
     MAX_DOCUMENT_BYTES,
     S3Error,
+    check_storage_health,
 )
 import stripe
 from app.stripe_service import (
@@ -1533,6 +1534,15 @@ async def admin_logs_page(request: Request, limit: int = 50, message: str = None
     })
 
 
+@app.get("/admin/storage/health")
+async def admin_storage_health(request: Request):
+    """Diagnóstico de conectividade e permissões dos buckets do Garage S3."""
+    user = await _get_user_or_none(request)
+    if not user or user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Acesso restrito a administradores.")
+    return check_storage_health()
+
+
 # ══════════════════════════════════════════════════════════
 #  ROTAS DE PERFIL DE USUÁRIO — MinIO (Atividade 6)
 # ══════════════════════════════════════════════════════════
@@ -1540,27 +1550,76 @@ async def admin_logs_page(request: Request, limit: int = 50, message: str = None
 @app.get("/profile/{profile_user_id}", response_class=HTMLResponse)
 async def profile_page(request: Request, profile_user_id: int, message: str = None, error: str = None):
     """
-    Página de perfil pública: exibe foto (do MinIO), bio e filmes favoritados.
-    O botão de edição só é renderizado quando o usuário logado é o dono do perfil.
+    Página de perfil no domínio CuidaHome (Saúde & Atendimento Domiciliar):
+    Exibe dados do usuário, avatar do MinIO/Garage S3, histórico de locações de equipamentos
+    e listagem de laudos anexados (com conformidade LGPD e ABAC).
     """
     user = await _get_user_or_none(request)
     if not user:
         return RedirectResponse(url="/login", status_code=302)
 
-    # Buscar dados do usuário de perfil no banco
+    is_own_profile = (user["id"] == profile_user_id)
+    is_admin = (user.get("role") == "admin")
+
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     try:
+        # Buscar dados do usuário de perfil
         cursor.execute(
-            "SELECT id, nome, email, role, bio, avatar_key, premium FROM usuarios WHERE id = %s",
+            "SELECT id, nome, email, role, bio, avatar_key, premium, criado_em FROM usuarios WHERE id = %s",
             (profile_user_id,),
         )
         profile_user = cursor.fetchone()
         if not profile_user:
             raise HTTPException(status_code=404, detail="Usuário não encontrado.")
 
-        # Lista de favoritos (polimórfica)
-        favorites = []
+        # Buscar histórico de locações de equipamentos do usuário
+        cursor.execute(
+            """
+            SELECT l.id, l.status, l.endereco_entrega, l.cidade, l.uf,
+                   l.data_entrega_prevista, l.periodo_previsto_dias, l.criado_em,
+                   e.id AS equipamento_id, e.nome AS equipamento_nome,
+                   e.preco_mensal_centavos, e.valor_caucao_centavos,
+                   ue.numero_patrimonio,
+                   p.nome AS paciente_nome
+            FROM locacoes l
+            JOIN equipamentos e ON l.equipamento_id = e.id
+            LEFT JOIN unidades_equipamento ue ON l.unidade_id = ue.id
+            LEFT JOIN pacientes p ON l.paciente_id = p.id
+            WHERE l.cliente_id = %s
+            ORDER BY l.criado_em DESC
+            LIMIT 20
+            """,
+            (profile_user_id,),
+        )
+        locacoes = cursor.fetchall()
+
+        # Buscar laudos e documentos médicos (apenas o próprio dono ou administrador - LGPD)
+        documentos = []
+        if is_own_profile or is_admin:
+            cursor.execute(
+                """
+                SELECT d.id, d.tipo, d.mime, d.tamanho_bytes, d.descricao, d.criado_em,
+                       p.nome AS paciente_nome, p.id AS paciente_id
+                FROM documentos d
+                LEFT JOIN pacientes p ON d.paciente_id = p.id
+                WHERE d.criado_por = %s OR p.familiar_id = %s
+                ORDER BY d.criado_em DESC
+                LIMIT 20
+                """,
+                (profile_user_id, profile_user_id),
+            )
+            documentos = cursor.fetchall()
+
+        # Pacientes vinculados se for familiar_paciente
+        pacientes = []
+        if profile_user.get("role") == "familiar_paciente":
+            cursor.execute(
+                "SELECT id, nome, cidade, uf, mobilidade, ativo FROM pacientes WHERE familiar_id = %s AND ativo = TRUE",
+                (profile_user_id,),
+            )
+            pacientes = cursor.fetchall()
+
     finally:
         cursor.close()
         conn.close()
@@ -1568,11 +1627,8 @@ async def profile_page(request: Request, profile_user_id: int, message: str = No
     # Montar URL do avatar via proxy interno /storage/avatars/<filename>
     avatar_url = None
     if profile_user.get("avatar_key"):
-        # Extrai apenas o nome do arquivo da chave (ex: "avatars/42-xxx.jpg" → "42-xxx.jpg")
         filename = profile_user["avatar_key"].split("/", 1)[-1]
         avatar_url = f"/storage/avatars/{filename}"
-
-    is_own_profile = (user["id"] == profile_user_id)
 
     return templates.TemplateResponse("profile.html", {
         "request": request,
@@ -1580,9 +1636,11 @@ async def profile_page(request: Request, profile_user_id: int, message: str = No
         "active_page": "profile",
         "profile_user": profile_user,
         "avatar_url": avatar_url,
-        "favorites": favorites,
+        "locacoes": locacoes,
+        "documentos": documentos,
+        "pacientes": pacientes,
         "is_own_profile": is_own_profile,
-        "stripe_configured": is_stripe_configured(),
+        "is_admin": is_admin,
         "message": message,
         "error": error,
     })
@@ -1669,9 +1727,33 @@ async def profile_upload(
                 file_bytes=file_bytes,
                 content_type=msg_or_mime,
             )
-        except Exception as e:
+        except S3Error as e:
+            await _emit_log(
+                usuario_id=user["id"],
+                acao="storage.error",
+                detalhe=f"upload_avatar_s3_error code={e.code} msg={e.message} bucket={S3_BUCKET_AVATARS}",
+                ip_origem=_get_client_ip(request),
+            )
+            import urllib.parse
+            if e.code in ("AccessDenied", "Forbidden", "NoSuchKey"):
+                err_msg = "Falha de permissão no storage (AccessDenied). Verifique as chaves e autorizações do Garage S3."
+            else:
+                err_msg = f"Falha de comunicação com o storage ({e.code}): {e.message}"
             return RedirectResponse(
-                url=f"/profile/{profile_user_id}?error=Erro+ao+enviar+imagem+para+o+storage.",
+                url=f"/profile/{profile_user_id}?error={urllib.parse.quote_plus(err_msg)}",
+                status_code=302,
+            )
+        except Exception as e:
+            await _emit_log(
+                usuario_id=user["id"],
+                acao="storage.error",
+                detalhe=f"upload_avatar_unexpected_error err={str(e)}",
+                ip_origem=_get_client_ip(request),
+            )
+            import urllib.parse
+            err_msg = f"Erro ao processar imagem para o storage: {str(e)}"
+            return RedirectResponse(
+                url=f"/profile/{profile_user_id}?error={urllib.parse.quote_plus(err_msg)}",
                 status_code=302,
             )
 
@@ -2176,7 +2258,29 @@ async def upload_documento_paciente(
             file_bytes=file_bytes,
             content_type=msg_or_mime,
         )
+    except S3Error as e:
+        await _emit_log(
+            usuario_id=user["id"],
+            acao="storage.error",
+            detalhe=f"upload_documento_s3_error code={e.code} msg={e.message} bucket={S3_BUCKET_DOCUMENTOS} paciente_id={paciente_id}",
+            ip_origem=_get_client_ip(request),
+        )
+        if e.code in ("AccessDenied", "Forbidden", "NoSuchKey"):
+            raise HTTPException(
+                status_code=502,
+                detail=f"Falha ao salvar no storage: S3 operation failed; code: {e.code}, message: {e.message}, resource: /{S3_BUCKET_DOCUMENTOS}. Verifique as permissões da chave de acesso no Garage S3.",
+            )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Falha ao salvar no storage: S3 operation failed; code: {e.code}, message: {e.message}",
+        )
     except Exception as e:
+        await _emit_log(
+            usuario_id=user["id"],
+            acao="storage.error",
+            detalhe=f"upload_documento_unexpected_error err={str(e)} paciente_id={paciente_id}",
+            ip_origem=_get_client_ip(request),
+        )
         raise HTTPException(status_code=500, detail=f"Falha ao salvar no storage: {e}")
 
     conn = get_connection()

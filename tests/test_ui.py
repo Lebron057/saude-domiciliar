@@ -271,6 +271,90 @@ class TestCuidaHomeTemplatesAndUI(unittest.TestCase):
         self.assertIn("/admin/credenciais/42/aprovar", rendered)
         self.assertIn("/documentos/credenciais/42", rendered)
 
+    def test_login_template_renders_health_branding(self):
+        """Verifica se a tela de login renderiza sem erros sintáticos e com identidade CuidaHome."""
+        template = self.env.get_template("login.html")
+        rendered = template.render(user=None, error=None, success=None)
+        self.assertIn("Acesse sua Conta", rendered)
+        self.assertIn("CuidaHome", rendered)
+        self.assertIn("auth-wrapper", rendered)
+        self.assertIn("auth-card", rendered)
+        self.assertNotIn("filme", rendered.lower())
+
+    def test_register_template_renders_health_roles(self):
+        """Verifica se a tela de cadastro renderiza os papéis de saúde e classes padronizadas."""
+        template = self.env.get_template("register.html")
+        rendered = template.render(user=None, error=None)
+        self.assertIn("Cadastre-se na CuidaHome", rendered)
+        self.assertIn("familiar_paciente", rendered)
+        self.assertIn("profissional_saude", rendered)
+        self.assertIn("fornecedor_equipamento", rendered)
+        self.assertIn("auth-card", rendered)
+
+    def test_profile_template_renders_locacoes_and_documentos(self):
+        """Verifica se a tela de perfil renderiza locações de equipamentos e laudos médicos."""
+        template = self.env.get_template("profile.html")
+        mock_user = {"id": 10, "nome": "Carlos Familiar", "role": "familiar_paciente"}
+        mock_profile_user = {
+            "id": 10,
+            "nome": "Carlos Familiar",
+            "email": "carlos@exemplo.com",
+            "role": "familiar_paciente",
+            "bio": "Responsável pelos cuidados domiciliares do meu pai.",
+            "avatar_key": None,
+            "premium": False,
+            "criado_em": None,
+        }
+        mock_locacoes = [
+            {
+                "id": 1,
+                "equipamento_id": 5,
+                "equipamento_nome": "Cama Hospitalar Motorizada",
+                "status": "entregue",
+                "cidade": "Campinas",
+                "uf": "SP",
+                "data_entrega_prevista": "2026-11-15",
+                "periodo_previsto_dias": 30,
+                "preco_mensal_centavos": 35000,
+                "numero_patrimonio": "CAM-012",
+                "paciente_nome": "Sr. Antônio",
+            }
+        ]
+        mock_documentos = [
+            {
+                "id": 7,
+                "tipo": "laudo_medico",
+                "mime": "application/pdf",
+                "tamanho_bytes": 102400,
+                "descricao": "Laudo ortopédico Dr. Marcos",
+                "paciente_nome": "Sr. Antônio",
+                "criado_em": None,
+            }
+        ]
+
+        rendered = template.render(
+            user=mock_user,
+            profile_user=mock_profile_user,
+            avatar_url="/storage/avatars/avatar-10.jpg",
+            locacoes=mock_locacoes,
+            documentos=mock_documentos,
+            pacientes=[{"id": 1, "nome": "Sr. Antônio", "cidade": "Campinas", "uf": "SP", "mobilidade": "acamado", "ativo": True}],
+            is_own_profile=True,
+            is_admin=False,
+            message="Perfil atualizado com sucesso!",
+            error=None,
+        )
+
+        self.assertIn("Carlos Familiar", rendered)
+        self.assertIn("Cama Hospitalar Motorizada", rendered)
+        self.assertIn("CAM-012", rendered)
+        self.assertIn("Laudo Médico", rendered)
+        self.assertIn("Laudo ortopédico Dr. Marcos", rendered)
+        self.assertIn("/documentos/laudos/7", rendered)
+        self.assertNotIn("filme", rendered.lower())
+        self.assertNotIn("tmdb", rendered.lower())
+        self.assertNotIn("upgrade para o plano premium", rendered.lower())
+
 
 if __name__ == "__main__":
     unittest.main()

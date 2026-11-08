@@ -17,6 +17,7 @@ from app.services.locacoes import (
     verificar_disponibilidade_estoque,
     BusinessRuleError,
 )
+import app.routers.equipamentos
 
 
 class TestLocacoesAndEstoque(unittest.TestCase):
@@ -266,6 +267,30 @@ class TestStripeBillingAndCaucao(unittest.TestCase):
 
         sqls = [c[0][0] for c in mock_cursor.execute.call_args_list]
         self.assertTrue(any("SET status = 'capturada_parcial'" in sql for sql in sqls))
+
+
+class TestRotaLocarEquipamentoValidation(unittest.IsolatedAsyncioTestCase):
+    """Testa a validação da rota HTTP de locação e exigência do aceite do termo."""
+
+    @patch("app.routers.equipamentos._get_user_or_401")
+    async def test_rota_locar_equipamento_rejeita_sem_aceite_termo(self, mock_user):
+        from app.routers.equipamentos import rota_locar_equipamento, HTTPException
+        mock_user.return_value = {"id": 10, "nome": "Cliente Teste", "role": "familiar_paciente"}
+        mock_request = MagicMock()
+        mock_request.headers = {}
+
+        with self.assertRaises(HTTPException) as ctx:
+            await rota_locar_equipamento(
+                request=mock_request,
+                equipamento_id=1,
+                endereco_entrega="Av Paulista, 1000",
+                cidade="São Paulo",
+                uf="SP",
+                data_entrega_prevista_str="2026-11-20",
+                aceite_termo=False,
+            )
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("obrigatório concordar com os termos de locação", ctx.exception.detail)
 
 
 if __name__ == "__main__":

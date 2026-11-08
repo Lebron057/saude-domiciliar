@@ -137,7 +137,7 @@
 
                     <div style="margin: 1.2rem 0; padding: 0.8rem; background: var(--bg-secondary); border-radius: var(--radius-sm); font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">
                         <label style="display: flex; gap: 0.6rem; cursor: pointer; align-items: flex-start;">
-                            <input type="checkbox" required style="margin-top: 0.2rem;">
+                            <input type="checkbox" name="aceite_termo" id="aceite_termo" value="true" required style="margin-top: 0.2rem;">
                             <span>Li e concordo com os termos de locação mensal. Compreendo que a caução de <strong>R$ {{ "%.2f"|format(equipamento.valor_caucao_centavos / 100) }}</strong> será retida temporariamente como autorização de segurança via Stripe e liberada após a vistoria física de devolução.</span>
                         </label>
                     </div>
@@ -171,3 +171,4 @@
 
 </div>
 {% endblock %}
+

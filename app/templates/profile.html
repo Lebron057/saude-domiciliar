@@ -2,459 +2,359 @@
 {% block title %}Perfil de {{ profile_user.nome }} — CuidaHome{% endblock %}
 
 {% block content %}
-<style>
-  /* ── Layout do perfil ── */
-  .profile-hero {
-    background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-card) 100%);
-    border-bottom: 1px solid var(--border);
-    padding: 3rem 1.5rem 2rem;
-  }
-  .profile-hero-inner {
-    max-width: 860px;
-    margin: 0 auto;
-    display: flex;
-    align-items: flex-end;
-    gap: 2rem;
-    flex-wrap: wrap;
-  }
-  .profile-avatar-wrapper {
-    position: relative;
-    flex-shrink: 0;
-  }
-  .profile-avatar {
-    width: 130px;
-    height: 130px;
-    border-radius: 50%;
-    border: 4px solid var(--primary);
-    object-fit: cover;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-    background: var(--bg-secondary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .profile-avatar-placeholder {
-    width: 130px;
-    height: 130px;
-    border-radius: 50%;
-    border: 4px solid var(--primary);
-    background: linear-gradient(135deg, var(--primary), #6c63ff);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 3.5rem;
-    font-weight: 800;
-    color: #fff;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-    letter-spacing: -1px;
-  }
-  .profile-info {
-    flex: 1;
-    min-width: 200px;
-  }
-  .profile-name {
-    font-size: 2rem;
-    font-weight: 800;
-    color: var(--text-primary);
-    margin: 0 0 0.25rem;
-    line-height: 1.1;
-  }
-  .profile-role-badge {
-    display: inline-block;
-    font-size: 0.7rem;
-    font-weight: 700;
-    padding: 2px 8px;
-    border-radius: 6px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    margin-bottom: 0.6rem;
-    background: rgba(252, 92, 124, 0.15);
-    color: #fc5c7c;
-    border: 1px solid rgba(252, 92, 124, 0.3);
-  }
-  .profile-bio {
-    color: var(--text-secondary);
-    font-size: 0.95rem;
-    line-height: 1.5;
-    margin: 0.4rem 0 0.8rem;
-    max-width: 480px;
-  }
-  .profile-stats {
-    display: flex;
-    gap: 1.5rem;
-    margin-top: 0.6rem;
-  }
-  .profile-stat {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-  .profile-stat .count {
-    font-size: 1.4rem;
-    font-weight: 800;
-    color: var(--primary);
-    line-height: 1;
-  }
-  .profile-stat .label {
-    font-size: 0.72rem;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
+<div class="dashboard-container" style="max-width: 1040px; margin: 0 auto; padding: 2rem 1rem;">
 
-  /* ── Formulário de edição ── */
-  .edit-section {
-    max-width: 860px;
-    margin: 2rem auto;
-    padding: 0 1.5rem;
-  }
-  .edit-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-xl);
-    padding: 1.75rem;
-    margin-bottom: 2rem;
-  }
-  .edit-card h2 {
-    font-size: 1.1rem;
-    font-weight: 700;
-    margin: 0 0 1.2rem;
-    color: var(--text-primary);
-  }
-  .edit-form {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-  }
-  .form-group label {
-    display: block;
-    font-size: 0.82rem;
-    font-weight: 600;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    margin-bottom: 0.4rem;
-  }
-  .form-group textarea {
-    width: 100%;
-    resize: vertical;
-    min-height: 80px;
-    padding: 0.6rem 0.8rem;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    color: var(--text-primary);
-    font-size: 0.9rem;
-    font-family: inherit;
-    transition: border-color 0.2s;
-    box-sizing: border-box;
-  }
-  .form-group textarea:focus {
-    border-color: var(--primary);
-    outline: none;
-  }
-  .file-input-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-  }
-  .file-hint {
-    font-size: 0.78rem;
-    color: var(--text-muted);
-  }
-  .file-size-indicator {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    margin-top: 0.25rem;
-  }
-  #filePreview {
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 2px solid var(--primary);
-    display: none;
-  }
-
-  /* ── Itens favoritados ── */
-  .section-header {
-    max-width: 860px;
-    margin: 0 auto 1.25rem;
-    padding: 0 1.5rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .section-header h2 {
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: var(--text-primary);
-    margin: 0;
-  }
-  .profile-favorites-grid {
-    max-width: 860px;
-    margin: 0 auto 3rem;
-    padding: 0 1.5rem;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 1rem;
-  }
-  .profile-fav-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    overflow: hidden;
-    text-decoration: none;
-    transition: transform 0.2s, box-shadow 0.2s;
-    display: block;
-  }
-  .profile-fav-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-  }
-  .profile-fav-poster {
-    width: 100%;
-    aspect-ratio: 2/3;
-    object-fit: cover;
-    display: block;
-  }
-  .profile-fav-poster-placeholder {
-    width: 100%;
-    aspect-ratio: 2/3;
-    background: var(--bg-secondary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 2.5rem;
-  }
-  .profile-fav-title {
-    padding: 0.5rem;
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    line-height: 1.3;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  /* ── Alertas ── */
-  .profile-alerts {
-    max-width: 860px;
-    margin: 1rem auto 0;
-    padding: 0 1.5rem;
-  }
-</style>
-
-<!-- Alertas -->
-<div class="profile-alerts">
-  {% if message %}
-  <div class="alert alert-success">✅ {{ message }}</div>
-  {% endif %}
-  {% if error %}
-  <div class="alert alert-error">⚠️ {{ error }}</div>
-  {% endif %}
-</div>
-
-<!-- Hero do perfil -->
-<div class="profile-hero">
-  <div class="profile-hero-inner">
-    <div class="profile-avatar-wrapper">
-      {% if avatar_url %}
-      <img class="profile-avatar" src="{{ avatar_url }}" alt="Foto de perfil de {{ profile_user.nome }}">
-      {% else %}
-      <div class="profile-avatar-placeholder">{{ profile_user.nome[0]|upper }}</div>
-      {% endif %}
-    </div>
-    <div class="profile-info">
-      <h1 class="profile-name">{{ profile_user.nome }}</h1>
-      {% if profile_user.premium %}
-      <span style="display: inline-block; font-size: 0.72rem; font-weight: 800; padding: 3px 10px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.6rem; background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);">
-        ⭐ Membro Premium
-      </span>
-      {% endif %}
-      {% if profile_user.role == 'admin' %}
-      <span class="profile-role-badge">Admin</span>
-      {% endif %}
-      <p class="profile-bio">
-        {% if profile_user.bio %}{{ profile_user.bio }}{% else %}<em style="color:var(--text-muted);">Sem biografia ainda.</em>{% endif %}
-      </p>
-      <div class="profile-stats">
-        <div class="profile-stat">
-          <span class="count">{{ favorites|length }}</span>
-          <span class="label">Favoritos</span>
-        </div>
-      </div>
-    </div>
-    {% if is_own_profile %}
-    <div>
-      <button class="btn btn-primary btn-sm" onclick="document.getElementById('editSection').scrollIntoView({behavior:'smooth'})">
-        ✏️ Editar perfil
-      </button>
+    <!-- Alertas de Feedback -->
+    {% if message %}
+    <div class="alert alert-success" style="margin-bottom: 1.5rem;">
+        <span>✅ {{ message }}</span>
     </div>
     {% endif %}
-  </div>
-</div>
 
-<!-- Banner de Status Premium / Upgrade (para o dono do perfil) -->
-{% if is_own_profile %}
-<div class="edit-section" style="margin-bottom: 0; padding-top: 1.5rem;">
-  {% if not profile_user.premium %}
-  <div class="edit-card" style="border: 1px solid #f59e0b; background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(217, 119, 6, 0.03));">
-    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1.5rem;">
-      <div>
-        <h2 style="color: #f59e0b; margin: 0 0 0.4rem; display: flex; align-items: center; gap: 0.5rem; font-size: 1.25rem;">
-          ⭐ Faça Upgrade para o Plano Premium
-        </h2>
-        <p style="color: var(--text-secondary); font-size: 0.9rem; margin: 0 0 0.5rem; max-width: 550px;">
-          Desbloqueie favoritos ilimitados (limite atual de 3 itens no plano gratuito), exiba o selo VIP exclusivo no seu perfil e apoie a plataforma.
-        </p>
-        <span style="font-size: 0.8rem; color: #f59e0b; font-weight: 600;">Apenas R$ 19,90 / mês · Modo de Teste Stripe</span>
-      </div>
-      <div>
-        <a href="/checkout/subscribe" class="btn" style="background: linear-gradient(135deg, #f59e0b, #eab308); color: #18181b; font-weight: 800; border: none; border-radius: 999px; padding: 10px 22px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4); font-size: 0.95rem;">
-          ⭐ Assinar Plano Premium
-        </a>
-      </div>
+    {% if error %}
+    <div class="alert alert-error" style="margin-bottom: 1.5rem;">
+        <span>⚠️ {{ error }}</span>
     </div>
-  </div>
-  {% else %}
-  <div class="edit-card" style="border: 1px solid rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.06);">
-    <div style="display: flex; align-items: center; gap: 1rem;">
-      <span style="font-size: 2rem;">⭐</span>
-      <div>
-        <h3 style="color: #f59e0b; margin: 0 0 0.25rem; font-size: 1.1rem; font-weight: 700;">Assinatura Premium Ativa</h3>
-        <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">
-          Você possui acesso a todos os benefícios VIP, incluindo itens favoritos ilimitados e selo dourado exclusivo.
-        </p>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-</div>
-{% endif %}
+    {% endif %}
 
-<!-- Formulário de edição (só para dono do perfil) -->
-{% if is_own_profile %}
-<div class="edit-section" id="editSection">
-  <div class="edit-card">
-    <h2>✏️ Editar Perfil</h2>
-    <form
-      class="edit-form"
-      method="POST"
-      action="/profile/{{ profile_user.id }}/upload"
-      enctype="multipart/form-data"
-      id="profileForm"
-    >
-      <div class="form-group">
-        <label for="bio">Biografia</label>
-        <textarea
-          id="bio"
-          name="bio"
-          placeholder="Conte um pouco sobre você..."
-          maxlength="500"
-        >{% if profile_user.bio %}{{ profile_user.bio }}{% endif %}</textarea>
-      </div>
+    <!-- Cartão Principal de Perfil -->
+    <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-xl); padding: 2rem; margin-bottom: 2rem; box-shadow: var(--shadow-md);">
+        <div style="display: flex; gap: 2rem; align-items: center; flex-wrap: wrap;">
+            <!-- Avatar -->
+            <div style="position: relative; flex-shrink: 0;">
+                {% if avatar_url %}
+                <img src="{{ avatar_url }}" alt="Foto de {{ profile_user.nome }}" style="width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 3px solid var(--accent-primary); box-shadow: var(--shadow-sm);">
+                {% else %}
+                <div style="width: 120px; height: 120px; border-radius: 50%; background: var(--accent-gradient); display: flex; align-items: center; justify-content: center; font-size: 3rem; font-weight: 800; color: #fff; box-shadow: var(--shadow-sm);">
+                    {{ profile_user.nome[0]|upper }}
+                </div>
+                {% endif %}
+            </div>
 
-      <div class="form-group">
-        <label for="foto">Foto de Perfil</label>
-        <div class="file-input-wrapper">
-          <img id="filePreview" src="#" alt="Pré-visualização">
-          <div>
-            <input
-              type="file"
-              id="foto"
-              name="foto"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              onchange="previewFile(this)"
-            >
-            <div class="file-hint">JPEG, PNG, WEBP ou GIF · Máximo 3 MB</div>
-            <div class="file-size-indicator" id="fileSizeInfo"></div>
-          </div>
+            <!-- Dados do Usuário -->
+            <div style="flex: 1; min-width: 250px;">
+                <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.4rem;">
+                    <h1 style="font-size: 1.8rem; font-weight: 800; color: var(--text-primary); margin: 0;">{{ profile_user.nome }}</h1>
+                    
+                    {% if profile_user.role == 'familiar_paciente' %}
+                    <span class="badge badge-info" style="font-size: 0.75rem; padding: 0.25rem 0.6rem;">🏠 Familiar / Paciente</span>
+                    {% elif profile_user.role == 'profissional_saude' %}
+                    <span class="badge badge-success" style="font-size: 0.75rem; padding: 0.25rem 0.6rem;">🩺 Profissional de Saúde</span>
+                    {% elif profile_user.role == 'fornecedor_equipamento' %}
+                    <span class="badge badge-warning" style="font-size: 0.75rem; padding: 0.25rem 0.6rem;">📦 Fornecedor</span>
+                    {% elif profile_user.role == 'admin' %}
+                    <span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.4); font-size: 0.75rem; padding: 0.25rem 0.6rem;">🛡️ Administrador</span>
+                    {% else %}
+                    <span class="badge badge-neutral" style="font-size: 0.75rem; padding: 0.25rem 0.6rem;">👤 Usuário</span>
+                    {% endif %}
+                </div>
+
+                <p style="color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 0.8rem; line-height: 1.5;">
+                    {% if profile_user.bio %}
+                    {{ profile_user.bio }}
+                    {% else %}
+                    <em style="color: var(--text-muted);">Nenhuma biografia informada.</em>
+                    {% endif %}
+                </p>
+
+                <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; font-size: 0.82rem; color: var(--text-muted);">
+                    {% if is_own_profile or is_admin %}
+                    <div>📧 <span style="color: var(--text-secondary);">{{ profile_user.email }}</span></div>
+                    {% endif %}
+                    {% if profile_user.criado_em %}
+                    <div>📅 Membro desde <span style="color: var(--text-secondary);">{{ profile_user.criado_em.strftime('%d/%m/%Y') if profile_user.criado_em else '2026' }}</span></div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Botão de Ação -->
+            {% if is_own_profile %}
+            <div>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="toggleEditCard()" id="btnToggleEdit">
+                    ✏️ Editar Perfil & Foto
+                </button>
+            </div>
+            {% endif %}
         </div>
-      </div>
 
-      <div>
-        <button type="submit" class="btn btn-primary" id="submitBtn">💾 Salvar alterações</button>
-      </div>
-    </form>
-  </div>
-</div>
-{% endif %}
+        <!-- Formulário Retrátil de Edição de Perfil (Apenas Próprio Dono) -->
+        {% if is_own_profile %}
+        <div id="editCard" style="display: none; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+            <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem; color: var(--text-primary);">
+                ✏️ Atualizar Dados do Perfil
+            </h3>
+            <form method="POST" action="/profile/{{ profile_user.id }}/upload" enctype="multipart/form-data" id="profileForm">
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label for="bio" class="form-label">Biografia / Apresentação</label>
+                    <textarea id="bio" name="bio" class="form-textarea" rows="3" maxlength="500" placeholder="Conte um pouco sobre suas necessidades de cuidados ou especialidade...">{% if profile_user.bio %}{{ profile_user.bio }}{% endif %}</textarea>
+                    <span class="form-help">Máximo 500 caracteres.</span>
+                </div>
 
-<!-- Itens e profissionais favoritados -->
-<div class="section-header" style="margin-top: 1.5rem;">
-  <h2>⭐ Favoritos Salvos</h2>
-  <span class="stats-badge" style="font-size:0.85rem;">{{ favorites|length }} item{{ 's' if favorites|length != 1 else '' }}</span>
-</div>
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label for="foto" class="form-label">Nova Foto de Perfil (Avatar)</label>
+                    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                        <img id="avatarPreview" src="#" alt="Prévia" style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover; border: 2px solid var(--accent-primary); display: none;">
+                        <div style="flex: 1;">
+                            <input type="file" id="foto" name="foto" class="form-input" accept="image/jpeg,image/png,image/webp,image/gif" onchange="previewAvatar(this)">
+                            <span class="form-help">Formatos: JPEG, PNG, WEBP ou GIF · Tamanho máximo: 3 MB</span>
+                            <div id="avatarValidationMsg" style="font-size: 0.8rem; margin-top: 0.3rem;"></div>
+                        </div>
+                    </div>
+                </div>
 
-{% if favorites %}
-<div class="profile-favorites-grid">
-  {% for fav in favorites %}
-  <div class="profile-fav-card">
-    <div class="profile-fav-poster-placeholder">🩺</div>
-    <div class="profile-fav-title">{{ fav.nome or 'Item salvo' }}</div>
-  </div>
-  {% endfor %}
+                <div style="display: flex; gap: 0.8rem; justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="toggleEditCard()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary btn-sm" id="btnSalvarPerfil">💾 Salvar Alterações</button>
+                </div>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Indicadores Rápidos -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+        <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 1.25rem; display: flex; align-items: center; gap: 1rem;">
+            <div style="width: 48px; height: 48px; border-radius: var(--radius-md); background: rgba(6, 182, 212, 0.15); color: var(--accent-primary); display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">
+                📦
+            </div>
+            <div>
+                <div style="font-size: 1.4rem; font-weight: 800; color: var(--text-primary); line-height: 1;">{{ locacoes|length }}</div>
+                <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.2rem;">Locações</div>
+            </div>
+        </div>
+
+        <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 1.25rem; display: flex; align-items: center; gap: 1rem;">
+            <div style="width: 48px; height: 48px; border-radius: var(--radius-md); background: rgba(16, 185, 129, 0.15); color: var(--accent-secondary); display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">
+                📄
+            </div>
+            <div>
+                <div style="font-size: 1.4rem; font-weight: 800; color: var(--text-primary); line-height: 1;">{{ documentos|length }}</div>
+                <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.2rem;">Documentos / Laudos</div>
+            </div>
+        </div>
+
+        {% if profile_user.role == 'familiar_paciente' %}
+        <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 1.25rem; display: flex; align-items: center; gap: 1rem;">
+            <div style="width: 48px; height: 48px; border-radius: var(--radius-md); background: rgba(59, 130, 246, 0.15); color: var(--info); display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">
+                🏥
+            </div>
+            <div>
+                <div style="font-size: 1.4rem; font-weight: 800; color: var(--text-primary); line-height: 1;">{{ pacientes|length }}</div>
+                <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.2rem;">Pacientes Vinculados</div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Seção: Histórico de Locações de Equipamentos -->
+    <div style="margin-bottom: 2.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.5rem;">
+            <h2 style="font-size: 1.35rem; font-weight: 800; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem; margin: 0;">
+                <span>🩺</span> Minhas Locações de Equipamentos
+            </h2>
+            <a href="/equipamentos" class="btn btn-secondary btn-sm" style="text-decoration: none;">
+                Ver Catálogo de Equipamentos →
+            </a>
+        </div>
+
+        {% if locacoes %}
+        <div style="display: flex; flex-direction: column; gap: 1rem;">
+            {% for loc in locacoes %}
+            <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div style="flex: 1; min-width: 240px;">
+                    <div style="display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.3rem;">
+                        <a href="/equipamentos/{{ loc.equipamento_id }}" style="font-size: 1.1rem; font-weight: 700; color: var(--text-primary); text-decoration: none;">
+                            {{ loc.equipamento_nome }}
+                        </a>
+                        {% if loc.numero_patrimonio %}
+                        <span style="font-size: 0.75rem; background: var(--bg-secondary); padding: 0.15rem 0.5rem; border-radius: 4px; border: 1px solid var(--border-color); color: var(--text-muted);">
+                            Patr: {{ loc.numero_patrimonio }}
+                        </span>
+                        {% endif %}
+                    </div>
+                    <div style="font-size: 0.85rem; color: var(--text-secondary); display: flex; flex-wrap: wrap; gap: 1rem;">
+                        <span>📍 {{ loc.cidade }}/{{ loc.uf }}</span>
+                        <span>📅 Entrega: {{ loc.data_entrega_prevista }} ({{ loc.periodo_previsto_dias }} dias)</span>
+                        {% if loc.paciente_nome %}
+                        <span>👤 Paciente: {{ loc.paciente_nome }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div style="text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 0.4rem;">
+                    <div>
+                        {% if loc.status == 'pendente_pagamento' %}
+                        <span class="badge badge-warning">⏳ Aguardando Pagamento</span>
+                        {% elif loc.status == 'pendente_caucao' %}
+                        <span class="badge badge-warning">🛡️ Aguardando Caução</span>
+                        {% elif loc.status == 'em_separacao' %}
+                        <span class="badge badge-info">📦 Em Separação</span>
+                        {% elif loc.status == 'despachada' %}
+                        <span class="badge badge-info">🚚 Despachada</span>
+                        {% elif loc.status == 'entregue' %}
+                        <span class="badge badge-success">✅ Entregue / Ativa</span>
+                        {% elif loc.status == 'devolucao_solicitada' %}
+                        <span class="badge badge-warning">🔄 Devolução Solicitada</span>
+                        {% elif loc.status in ('recolhida', 'encerrada') %}
+                        <span class="badge badge-neutral">🏁 Concluída</span>
+                        {% elif loc.status == 'cancelada' %}
+                        <span class="badge badge-danger">❌ Cancelada</span>
+                        {% else %}
+                        <span class="badge badge-neutral">{{ loc.status }}</span>
+                        {% endif %}
+                    </div>
+                    <div style="font-size: 0.85rem; font-weight: 600; color: var(--accent-primary);">
+                        R$ {{ "%.2f"|format(loc.preco_mensal_centavos / 100) }}/mês
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div style="background: var(--bg-card); border: 1px dashed var(--border-color); border-radius: var(--radius-lg); padding: 2.5rem 1.5rem; text-align: center;">
+            <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">🩺</div>
+            <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.35rem;">
+                Nenhuma locação de equipamento registrada
+            </h3>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; max-width: 460px; margin: 0 auto 1.25rem;">
+                Oferecemos camas hospitalares, concentradores de oxigênio, cadeiras de rodas e muito mais para suporte em home care.
+            </p>
+            <a href="/equipamentos" class="btn btn-primary btn-sm" style="text-decoration: none;">
+                Explorar Catálogo de Equipamentos
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Seção: Documentos Médicos & Laudos Clínicos (Privacidade LGPD) -->
+    {% if is_own_profile or is_admin %}
+    <div style="margin-bottom: 2.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.5rem;">
+            <div>
+                <h2 style="font-size: 1.35rem; font-weight: 800; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem; margin: 0;">
+                    <span>📄</span> Documentos Médicos & Laudos Clínicos
+                </h2>
+                <span style="font-size: 0.78rem; color: var(--text-muted);">
+                    🔒 Dados protegidos pela LGPD. Disponíveis apenas para o responsável legal e equipe de cuidados.
+                </span>
+            </div>
+        </div>
+
+        {% if documentos %}
+        <div style="display: flex; flex-direction: column; gap: 0.8rem;">
+            {% for doc in documentos %}
+            <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 1.2rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <div style="width: 44px; height: 44px; border-radius: var(--radius-md); background: rgba(6, 182, 212, 0.12); color: var(--accent-primary); display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
+                        {% if 'pdf' in doc.mime %}📕{% elif 'image' in doc.mime %}🖼️{% else %}📄{% endif %}
+                    </div>
+                    <div>
+                        <div style="font-weight: 700; color: var(--text-primary); font-size: 0.95rem;">
+                            {% if doc.tipo == 'laudo_medico' %}Laudo Médico
+                            {% elif doc.tipo == 'receita' %}Receita / Prescrição
+                            {% elif doc.tipo == 'termo_locacao' %}Termo de Locação
+                            {% elif doc.tipo == 'vistoria_entrega' %}Vistoria de Entrega
+                            {% else %}{{ doc.tipo }}{% endif %}
+                            {% if doc.descricao %} — <span style="font-weight: 400; color: var(--text-secondary);">{{ doc.descricao }}</span>{% endif %}
+                        </div>
+                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem; display: flex; gap: 1rem; flex-wrap: wrap;">
+                            {% if doc.paciente_nome %}<span>👤 Paciente: {{ doc.paciente_nome }}</span>{% endif %}
+                            <span>📦 {{ (doc.tamanho_bytes / 1024)|round(1) }} KB</span>
+                            <span>📅 {{ doc.criado_em.strftime('%d/%m/%Y %H:%M') if doc.criado_em else '' }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <a href="/documentos/laudos/{{ doc.id }}" target="_blank" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 0.4rem; text-decoration: none;">
+                        📥 Visualizar / Baixar
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div style="background: var(--bg-card); border: 1px dashed var(--border-color); border-radius: var(--radius-lg); padding: 2rem 1.5rem; text-align: center;">
+            <div style="font-size: 2.2rem; margin-bottom: 0.5rem;">📄</div>
+            <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.25rem;">
+                Nenhum laudo ou documento anexado
+            </h3>
+            <p style="color: var(--text-secondary); font-size: 0.85rem; max-width: 420px; margin: 0 auto;">
+                Laudos e receitas anexados aos prontuários de pacientes vinculados aparecerão listados aqui de forma centralizada e segura.
+            </p>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
 </div>
-{% else %}
-<div class="empty-state" style="max-width:860px; margin: 0 auto;">
-  <div class="icon">⭐</div>
-  <h3>Nenhum favorito salvo ainda</h3>
-  {% if is_own_profile %}
-  <p>Explore o catálogo de equipamentos e mural de plantonistas!</p>
-  <a href="/equipamentos" class="btn btn-primary">🩺 Ver Equipamentos</a>
-  {% else %}
-  <p>Este usuário ainda não possui itens favoritados.</p>
-  {% endif %}
-</div>
-{% endif %}
 
 <script>
-// Pré-visualização e validação client-side de foto (o backend valida novamente obrigatoriamente)
-function previewFile(input) {
-  const preview = document.getElementById('filePreview');
-  const sizeInfo = document.getElementById('fileSizeInfo');
-  const submitBtn = document.getElementById('submitBtn');
+function toggleEditCard() {
+    const card = document.getElementById('editCard');
+    const btn = document.getElementById('btnToggleEdit');
+    if (!card) return;
+    if (card.style.display === 'none' || card.style.display === '') {
+        card.style.display = 'block';
+        if (btn) btn.textContent = '✖ Fechar Edição';
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } else {
+        card.style.display = 'none';
+        if (btn) btn.textContent = '✏️ Editar Perfil & Foto';
+    }
+}
 
-  if (!input.files || !input.files[0]) {
-    preview.style.display = 'none';
-    sizeInfo.textContent = '';
-    return;
-  }
+function previewAvatar(input) {
+    const preview = document.getElementById('avatarPreview');
+    const msg = document.getElementById('avatarValidationMsg');
+    const btn = document.getElementById('btnSalvarPerfil');
 
-  const file = input.files[0];
-  const maxBytes = 3 * 1024 * 1024; // 3 MB
-  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!input.files || !input.files[0]) {
+        if (preview) preview.style.display = 'none';
+        if (msg) msg.textContent = '';
+        return;
+    }
 
-  // Validação de tipo
-  if (!allowedTypes.includes(file.type)) {
-    sizeInfo.textContent = '⚠️ Tipo de arquivo inválido. Use JPEG, PNG, WEBP ou GIF.';
-    sizeInfo.style.color = '#fc5c7c';
-    input.value = '';
-    preview.style.display = 'none';
-    return;
-  }
+    const file = input.files[0];
+    const maxBytes = 3 * 1024 * 1024; // 3 MB
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
-  // Validação de tamanho
-  if (file.size > maxBytes) {
-    sizeInfo.textContent = `⚠️ Arquivo muito grande (${(file.size / 1024 / 1024).toFixed(1)} MB). Limite: 3 MB.`;
-    sizeInfo.style.color = '#fc5c7c';
-    input.value = '';
-    preview.style.display = 'none';
-    return;
-  }
+    if (!allowedTypes.includes(file.type)) {
+        if (msg) {
+            msg.textContent = '⚠️ Formato inválido. Selecione JPEG, PNG, WEBP ou GIF.';
+            msg.style.color = 'var(--danger)';
+        }
+        input.value = '';
+        if (preview) preview.style.display = 'none';
+        if (btn) btn.disabled = true;
+        return;
+    }
 
-  sizeInfo.textContent = `✅ ${(file.size / 1024).toFixed(0)} KB`;
-  sizeInfo.style.color = '#22c55e';
+    if (file.size > maxBytes) {
+        if (msg) {
+            msg.textContent = `⚠️ Arquivo excede o limite de 3 MB (${(file.size / 1024 / 1024).toFixed(1)} MB).`;
+            msg.style.color = 'var(--danger)';
+        }
+        input.value = '';
+        if (preview) preview.style.display = 'none';
+        if (btn) btn.disabled = true;
+        return;
+    }
 
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    preview.src = e.target.result;
-    preview.style.display = 'block';
-  };
-  reader.readAsDataURL(file);
+    if (msg) {
+        msg.textContent = `✅ Imagem pronta para envio (${(file.size / 1024).toFixed(0)} KB)`;
+        msg.style.color = 'var(--accent-secondary)';
+    }
+    if (btn) btn.disabled = false;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        if (preview) {
+            preview.src = e.target.result;
+            preview.style.display = 'block';
+        }
+    };
+    reader.readAsDataURL(file);
 }
 </script>
 {% endblock %}

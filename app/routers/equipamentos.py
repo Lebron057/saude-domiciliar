@@ -5,8 +5,30 @@ Contempla vitrine, consulta de estoque em tempo real, contratação de locação
 
 from datetime import datetime, date
 from typing import Optional
-from fastapi import APIRouter, Request, Form, HTTPException, status
-from fastapi.responses import JSONResponse, RedirectResponse
+try:
+    from fastapi import APIRouter, Request, Form, HTTPException, status
+    from fastapi.responses import JSONResponse, RedirectResponse
+except ImportError:
+    class HTTPException(Exception):
+        def __init__(self, status_code: int = 500, detail: str = ""):
+            self.status_code = status_code
+            self.detail = detail
+            super().__init__(f"HTTP {status_code}: {detail}")
+    class APIRouter:
+        def __init__(self, *a, **kw): pass
+        def get(self, *a, **kw): return lambda f: f
+        def post(self, *a, **kw): return lambda f: f
+    class Request: pass
+    def Form(default=None, **kw): return default
+    class JSONResponse:
+        def __init__(self, content=None, status_code=200): self.content = content; self.status_code = status_code
+    class RedirectResponse:
+        def __init__(self, url=None, status_code=303): self.url = url; self.status_code = status_code
+    class status:
+        HTTP_400_BAD_REQUEST = 400
+        HTTP_401_UNAUTHORIZED = 401
+        HTTP_403_FORBIDDEN = 403
+        HTTP_404_NOT_FOUND = 404
 
 from app.auth import get_current_user
 from app.services.locacoes import (
@@ -103,7 +125,7 @@ async def rota_locar_equipamento(
     cidade: str = Form(...),
     uf: str = Form(...),
     data_entrega_prevista_str: str = Form(..., alias="data_entrega_prevista"),
-    aceite_termo: bool = Form(...),
+    aceite_termo: bool = Form(False),
     paciente_id: Optional[int] = Form(None),
     periodo_previsto_dias: int = Form(30),
 ):
@@ -112,6 +134,12 @@ async def rota_locar_equipamento(
     Critério DoD 4: Rejeita com mensagem de indisponibilidade caso não haja unidades em estoque.
     """
     user = await _get_user_or_401(request)
+
+    if not aceite_termo:
+        raise HTTPException(
+            status_code=400,
+            detail="É obrigatório concordar com os termos de locação e política de caução para prosseguir.",
+        )
 
     try:
         data_entrega = date.fromisoformat(data_entrega_prevista_str)
@@ -152,6 +180,10 @@ async def rota_locar_equipamento(
             user_email=user.get("email", ""),
             base_url=base_url,
         )
+
+        # Se submissão de formulário HTML pelo navegador, redireciona diretamente ao checkout
+        if "text/html" in request.headers.get("accept", "") and getattr(session, "url", None):
+            return RedirectResponse(url=session.url, status_code=303)
 
         return {
             "success": True,

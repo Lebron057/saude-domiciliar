@@ -1,6 +1,15 @@
 import os
 import httpx
-from fastapi import Request, HTTPException
+try:
+    from fastapi import Request, HTTPException
+except ImportError:
+    class HTTPException(Exception):
+        def __init__(self, status_code: int = 500, detail: str = ""):
+            self.status_code = status_code
+            self.detail = detail
+            super().__init__(f"HTTP {status_code}: {detail}")
+    class Request:
+        pass
 
 # URL interna do auth-service obtida das variáveis de ambiente
 AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://auth-service:8001").rstrip("/")

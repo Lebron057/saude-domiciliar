@@ -224,6 +224,26 @@ def ensure_buckets() -> dict:
     return status
 
 
+def check_storage_health() -> dict:
+    """Verifica autenticação e conectividade com os buckets do Garage S3."""
+    client = get_storage_client()
+    results = {}
+    for bucket in ALL_BUCKETS:
+        try:
+            exists = client.bucket_exists(bucket)
+            results[bucket] = {"status": "ok", "exists": exists}
+        except S3Error as e:
+            results[bucket] = {
+                "status": "error",
+                "code": e.code,
+                "message": e.message,
+                "hint": "Verifique se a chave de acesso (MINIO_ROOT_USER) foi importada no Garage com 'garage key import' e autorizada no bucket com 'garage bucket allow'."
+            }
+        except Exception as e:
+            results[bucket] = {"status": "unreachable", "detail": str(e)}
+    return results
+
+
 def upload_file(
     bucket_name: str,
     key: str,

@@ -4,39 +4,78 @@
 {% block content %}
 <div class="auth-wrapper">
     <div class="auth-card">
-        <h1>📝 Criar Conta</h1>
-        <p class="subtitle">Cadastre-se na rede CuidaHome para plantões e locação</p>
+        <div class="auth-header">
+            <div class="auth-icon">🏥</div>
+            <h1>Cadastre-se na CuidaHome</h1>
+            <p class="subtitle">Conectando famílias, especialistas de saúde e equipamentos</p>
+        </div>
 
         {% if error %}
-        <div class="alert alert-error">⚠️ {{ error }}</div>
+        <div class="alert alert-error" style="margin-bottom: 1.25rem;">
+            <span>⚠️ {{ error }}</span>
+        </div>
         {% endif %}
 
-        <form method="POST" action="/register">
+        <form method="POST" action="/register" class="auth-form" novalidate>
             <div class="form-group">
-                <label for="nome">Nome</label>
-                <input type="text" id="nome" name="nome" placeholder="Seu nome" required>
+                <label for="nome" class="form-label">Nome Completo</label>
+                <input
+                    type="text"
+                    id="nome"
+                    name="nome"
+                    class="form-input"
+                    placeholder="Ex: Dra. Juliana Santos ou Carlos Silva"
+                    required
+                    autocomplete="name"
+                    autofocus
+                >
             </div>
+
             <div class="form-group">
-                <label for="email">E-mail</label>
-                <input type="email" id="email" name="email" placeholder="seu@email.com" required>
+                <label for="email" class="form-label">E-mail Profissional ou Pessoal</label>
+                <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    class="form-input"
+                    placeholder="seu.email@exemplo.com"
+                    required
+                    autocomplete="email"
+                >
             </div>
+
             <div class="form-group">
-                <label for="senha">Senha</label>
-                <input type="password" id="senha" name="senha" placeholder="Mínimo 6 caracteres" required minlength="6">
+                <label for="senha" class="form-label">Senha de Acesso</label>
+                <input
+                    type="password"
+                    id="senha"
+                    name="senha"
+                    class="form-input"
+                    placeholder="Mínimo 6 caracteres"
+                    required
+                    minlength="6"
+                    autocomplete="new-password"
+                >
+                <span class="form-help">Utilize ao menos 6 caracteres com letras e números.</span>
             </div>
+
             <div class="form-group">
-                <label for="role">Tipo de Conta</label>
-                <select id="role" name="role" class="form-select" required style="width: 100%; padding: 0.75rem 1rem; background: var(--bg-secondary, #12122a); border: 1px solid var(--border-color, #27272a); border-radius: 8px; color: #f4f4f5; font-size: 0.92rem; outline: none; margin-top: 0.3rem;">
+                <label for="role" class="form-label">Tipo de Perfil na Rede</label>
+                <select id="role" name="role" class="form-select" required>
                     <option value="familiar_paciente" selected>🏠 Familiar / Paciente (Contratar plantões e locação)</option>
                     <option value="profissional_saude">🩺 Profissional de Saúde (Cuidador, técnico ou enfermeiro)</option>
                     <option value="fornecedor_equipamento">📦 Fornecedor (Locador de aparelhos ortopédicos)</option>
                 </select>
+                <span class="form-help">Profissionais passarão por moderação de credenciais antes da ativação.</span>
             </div>
-            <button type="submit" class="btn btn-primary btn-full">Criar Conta</button>
+
+            <button type="submit" class="btn btn-primary btn-full">
+                Criar Minha Conta
+            </button>
         </form>
 
         <div class="auth-footer">
-            Já tem conta? <a href="/login">Faça login</a>
+            Já possui uma conta ativa? <a href="/login" class="auth-link">Acesse aqui</a>
         </div>
     </div>
 </div>
