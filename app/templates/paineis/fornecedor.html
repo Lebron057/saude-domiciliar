@@ -1,0 +1,307 @@
+{% extends "base.html" %}
+
+{% block title %}Painel do Fornecedor de Aparelhos — CuidaHome{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+
+    <div class="dashboard-header">
+        <div class="dashboard-title">
+            <div style="display: inline-flex; align-items: center; gap: 0.4rem; color: var(--warning); font-size: 0.85rem; font-weight: 700; text-transform: uppercase;">
+                <i class="fa-solid fa-boxes-stacked"></i> Gestão de Frota & Logística
+            </div>
+            <h1>Espaço do Fornecedor — {{ user.nome }}</h1>
+            <p>Monitore suas unidades patrimoniais em locação, despachos residenciais e vistorias de devolução física.</p>
+        </div>
+        <div style="display: flex; gap: 0.75rem;">
+            <button class="btn btn-secondary btn-sm" onclick="openModal('modalNovaUnidade')">
+                <i class="fa-solid fa-barcode"></i> Nova Unidade Física
+            </button>
+            <a href="/equipamentos" class="btn btn-primary btn-sm">
+                <i class="fa-solid fa-eye"></i> Ver Catálogo Público
+            </a>
+        </div>
+    </div>
+
+    {% if message %}
+    <div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> {{ message }}</div>
+    {% endif %}
+    {% if error %}
+    <div class="alert alert-danger"><i class="fa-solid fa-triangle-exclamation"></i> {{ error }}</div>
+    {% endif %}
+
+    <!-- Indicadores -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon stat-icon-amber">
+                <i class="fa-solid fa-cubes"></i>
+            </div>
+            <div class="stat-details">
+                <div class="stat-value">{{ equipamentos|length }}</div>
+                <div class="stat-label">Modelos de Aparelhos</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon-green">
+                <i class="fa-solid fa-circle-check"></i>
+            </div>
+            <div class="stat-details">
+                <div class="stat-value">{{ total_unidades_disponiveis or 0 }}</div>
+                <div class="stat-label">Unidades Disponíveis</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon-teal">
+                <i class="fa-solid fa-truck-fast"></i>
+            </div>
+            <div class="stat-details">
+                <div class="stat-value">{{ total_unidades_locadas or 0 }}</div>
+                <div class="stat-label">Unidades em Locação</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navegação em Abas -->
+    <div class="tab-nav">
+        <button class="tab-btn active" onclick="switchTab('tabFrota')">
+            <i class="fa-solid fa-boxes-stacked"></i> Frota e Patrimônios ({{ equipamentos|length }})
+        </button>
+        <button class="tab-btn" onclick="switchTab('tabLogistica')">
+            <i class="fa-solid fa-truck-ramp-box"></i> Fila Logística de Locações ({{ locacoes_ativas|length }})
+        </button>
+        <button class="tab-btn" onclick="switchTab('tabDevolucoes')">
+            <i class="fa-solid fa-clipboard-check"></i> Vistorias de Devolução ({{ devolucoes_pendentes|length }})
+        </button>
+    </div>
+
+    <!-- Aba 1: Frota de Equipamentos -->
+    <div id="tabFrota" class="tab-pane active">
+        {% if equipamentos %}
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Equipamento</th>
+                        <th>Categoria</th>
+                        <th>Preço Mensal</th>
+                        <th>Caução Padrão</th>
+                        <th>Unidades Físicas</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for eq in equipamentos %}
+                    <tr>
+                        <td>#{{ eq.id }}</td>
+                        <td>
+                            <strong>{{ eq.nome }}</strong>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">{{ eq.stripe_price_id or 'Preço avulso' }}</div>
+                        </td>
+                        <td>{{ eq.categoria_nome or 'Equipamento' }}</td>
+                        <td><strong>R$ {{ "%.2f"|format(eq.preco_mensal_centavos / 100) }}</strong></td>
+                        <td>R$ {{ "%.2f"|format(eq.valor_caucao_centavos / 100) }}</td>
+                        <td>
+                            <span class="badge badge-in-stock">{{ eq.unidades_disponiveis or 0 }} disp.</span>
+                            <span class="badge badge-warning" style="margin-left: 0.3rem;">{{ eq.unidades_locadas or 0 }} loc.</span>
+                        </td>
+                        <td>
+                            <span class="badge badge-success">Ativo</span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="card" style="padding: 3rem 1.5rem; text-align: center;">
+            <i class="fa-solid fa-boxes-stacked" style="font-size: 2.5rem; color: var(--text-muted); margin-bottom: 1rem;"></i>
+            <h3 style="color: var(--text-primary); margin-bottom: 0.5rem;">Nenhum equipamento cadastrado na sua frota</h3>
+            <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Cadastre seus modelos e adicione os números de série e patrimônio.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Aba 2: Fila Logística de Locações -->
+    <div id="tabLogistica" class="tab-pane">
+        {% if locacoes_ativas %}
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Locação ID</th>
+                        <th>Equipamento</th>
+                        <th>Destinatário / Endereço</th>
+                        <th>Previsão Entrega</th>
+                        <th>Status Logístico</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for loc in locacoes_ativas %}
+                    <tr>
+                        <td>#{{ loc.id }}</td>
+                        <td>
+                            <strong>{{ loc.equipamento_nome }}</strong>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">Patrimônio: {{ loc.numero_patrimonio or 'A vincular' }}</div>
+                        </td>
+                        <td>{{ loc.cliente_nome }} — {{ loc.endereco_entrega }} ({{ loc.cidade }}/{{ loc.uf }})</td>
+                        <td>{{ loc.data_entrega_prevista }}</td>
+                        <td>
+                            <span class="badge badge-info">{{ loc.status|replace('_', ' ')|title }}</span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="card" style="padding: 3rem 1.5rem; text-align: center;">
+            <i class="fa-solid fa-truck" style="font-size: 2.5rem; color: var(--text-muted); margin-bottom: 1rem;"></i>
+            <h3 style="color: var(--text-primary); margin-bottom: 0.5rem;">Nenhum despacho pendente no momento</h3>
+            <p style="color: var(--text-secondary);">Quando clientes contratarem assinaturas mensais, os endereços de entrega aparecerão aqui.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Aba 3: Vistorias de Devolução e Liberação de Caução -->
+    <div id="tabDevolucoes" class="tab-pane">
+        {% if devolucoes_pendentes %}
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Locação ID</th>
+                        <th>Equipamento Retornado</th>
+                        <th>Cliente</th>
+                        <th>Valor da Caução</th>
+                        <th>Ação de Vistoria</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for dev in devolucoes_pendentes %}
+                    <tr>
+                        <td>#{{ dev.id }}</td>
+                        <td><strong>{{ dev.equipamento_nome }}</strong> ({{ dev.numero_patrimonio }})</td>
+                        <td>{{ dev.cliente_nome }}</td>
+                        <td>R$ {{ "%.2f"|format((dev.valor_caucao_centavos or 0) / 100) }}</td>
+                        <td>
+                            <button class="btn btn-primary btn-sm" onclick="openVistoriaModal('{{ dev.id }}', '{{ dev.equipamento_nome }}', '{{ dev.valor_caucao_centavos }}')">
+                                <i class="fa-solid fa-clipboard-check"></i> Realizar Vistoria
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="card" style="padding: 3rem 1.5rem; text-align: center;">
+            <i class="fa-solid fa-circle-check" style="font-size: 2.5rem; color: var(--accent-secondary); margin-bottom: 1rem;"></i>
+            <h3 style="color: var(--text-primary); margin-bottom: 0.5rem;">Fila de devoluções em dia!</h3>
+            <p style="color: var(--text-secondary);">Não há equipamentos aguardando vistoria ou liberação de caução digital.</p>
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+
+<!-- Modal: Cadastro de Nova Unidade Física -->
+<div id="modalNovaUnidade" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary);">Adicionar Unidade Física de Patrimônio</h3>
+            <button class="modal-close" onclick="closeModal('modalNovaUnidade')">&times;</button>
+        </div>
+        <form action="/fornecedor/unidades/nova" method="POST">
+            <div class="form-group">
+                <label class="form-label">Modelo de Equipamento *</label>
+                <select name="equipamento_id" required class="form-select">
+                    {% for eq in equipamentos %}
+                    <option value="{{ eq.id }}">{{ eq.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Número de Patrimônio / Etiqueta *</label>
+                <input type="text" name="numero_patrimonio" required class="form-input" placeholder="Ex: CH-CAM-005">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Número de Série do Fabricante</label>
+                <input type="text" name="numero_serie" class="form-input" placeholder="Ex: SN-9872134">
+            </div>
+            <button type="submit" class="btn btn-primary btn-full" style="margin-top: 1rem;">
+                <i class="fa-solid fa-plus"></i> Registrar Unidade em Estoque
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Vistoria de Devolução -->
+<div id="modalVistoria" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary);">Vistoria Técnica de Devolução</h3>
+            <button class="modal-close" onclick="closeModal('modalVistoria')">&times;</button>
+        </div>
+        <form id="formVistoria" action="" method="POST">
+            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+                Aparelho: <strong id="vistoriaEquipamentoNome" style="color: var(--text-primary);"></strong>
+            </p>
+            <div class="form-group">
+                <label class="form-label">Estado de Integridade Física *</label>
+                <select name="estado_conservacao" required class="form-select" onchange="toggleValorRetencao(this.value)">
+                    <option value="perfeito_estado">Perfeito Estado — Liberar Caução Integral</option>
+                    <option value="avaria_leve">Avaria Leve — Reter Parcialmente para Reparo</option>
+                    <option value="dano_grave">Dano Grave / Inutilização — Reter Caução Total</option>
+                </select>
+            </div>
+            <div class="form-group" id="groupValorRetencao" style="display: none;">
+                <label class="form-label">Valor da Retenção (em centavos ou R$)</label>
+                <input type="number" name="capturado_centavos" class="form-input" value="0" placeholder="Ex: 5000 para R$ 50,00">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Parecer Técnico / Observações da Vistoria</label>
+                <textarea name="observacoes" rows="3" class="form-textarea" placeholder="Relatório de higienização, funcionamento mecânico e integridade de cabos e estruturas..."></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary btn-full" style="margin-top: 1rem;">
+                <i class="fa-solid fa-check-double"></i> Concluir Vistoria & Liberar Garantia
+            </button>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function switchTab(tabId) {
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+    document.getElementById(tabId).classList.add('active');
+}
+
+function openModal(modalId) {
+    document.getElementById(modalId).classList.add('open');
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).classList.remove('open');
+}
+
+function openVistoriaModal(locacaoId, eqNome, valorCaucao) {
+    document.getElementById('vistoriaEquipamentoNome').innerText = eqNome;
+    document.getElementById('formVistoria').action = '/locacoes/' + locacaoId + '/vistoria';
+    openModal('modalVistoria');
+}
+
+function toggleValorRetencao(estado) {
+    const grp = document.getElementById('groupValorRetencao');
+    if (estado === 'avaria_leve') {
+        grp.style.display = 'block';
+    } else {
+        grp.style.display = 'none';
+    }
+}
+</script>
+{% endblock %}

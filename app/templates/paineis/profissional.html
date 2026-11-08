@@ -1,0 +1,363 @@
+{% extends "base.html" %}
+
+{% block title %}Painel do Profissional de Saúde — CuidaHome{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+
+    <div class="dashboard-header">
+        <div class="dashboard-title">
+            <div style="display: inline-flex; align-items: center; gap: 0.4rem; color: var(--accent-primary); font-size: 0.85rem; font-weight: 700; text-transform: uppercase;">
+                <i class="fa-solid fa-stethoscope"></i> Escala & Carreira
+            </div>
+            <h1>Espaço do Profissional — {{ user.nome }}</h1>
+            <p>Acompanhe sua escala de plantões, registre check-in/out e consulte o extrato transparente de repasses.</p>
+        </div>
+        <div style="display: flex; gap: 0.75rem; align-items: center;">
+            {% if perfil and perfil.status_verificacao == 'aprovado' %}
+            <span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> Credenciais Aprovadas</span>
+            {% elif perfil and perfil.status_verificacao == 'rejeitado' %}
+            <span class="badge badge-danger"><i class="fa-solid fa-triangle-exclamation"></i> Documentação Pendente</span>
+            {% else %}
+            <span class="badge badge-warning"><i class="fa-solid fa-hourglass-half"></i> Em Análise</span>
+            {% endif %}
+            <button class="btn btn-secondary btn-sm" onclick="openModal('modalUploadCredencial')">
+                <i class="fa-solid fa-upload"></i> Enviar Credencial
+            </button>
+        </div>
+    </div>
+
+    {% if message %}
+    <div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> {{ message }}</div>
+    {% endif %}
+    {% if error %}
+    <div class="alert alert-danger"><i class="fa-solid fa-triangle-exclamation"></i> {{ error }}</div>
+    {% endif %}
+
+    <!-- Indicadores -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon stat-icon-teal">
+                <i class="fa-solid fa-calendar-check"></i>
+            </div>
+            <div class="stat-details">
+                <div class="stat-value">{{ plantoes_confirmados|length }}</div>
+                <div class="stat-label">Plantões Confirmados</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon-green">
+                <i class="fa-solid fa-hand-holding-dollar"></i>
+            </div>
+            <div class="stat-details">
+                <div class="stat-value">R$ {{ "%.2f"|format((total_liquido_centavos or 0) / 100) }}</div>
+                <div class="stat-label">Total em Repasses Líquidos</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon-amber">
+                <i class="fa-solid fa-star"></i>
+            </div>
+            <div class="stat-details">
+                <div class="stat-value">{{ "%.2f"|format(perfil.nota_media or 5.0) if perfil else '5.00' }}</div>
+                <div class="stat-label">Nota Média de Avaliação</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navegação em Abas -->
+    <div class="tab-nav">
+        <button class="tab-btn active" onclick="switchTab('tabEscala')">
+            <i class="fa-solid fa-calendar-days"></i> Minha Escala ({{ plantoes_confirmados|length }})
+        </button>
+        <button class="tab-btn" onclick="switchTab('tabOportunidades')">
+            <i class="fa-solid fa-bullhorn"></i> Oportunidades em Aberto ({{ plantoes_abertos|length }})
+        </button>
+        <button class="tab-btn" onclick="switchTab('tabCredenciais')">
+            <i class="fa-solid fa-id-card"></i> Central de Credenciais ({{ credenciais|length }})
+        </button>
+        <button class="tab-btn" onclick="switchTab('tabRepasses')">
+            <i class="fa-solid fa-file-invoice-dollar"></i> Extrato de Repasses ({{ repasses|length }})
+        </button>
+    </div>
+
+    <!-- Aba 1: Minha Escala -->
+    <div id="tabEscala" class="tab-pane active">
+        {% if plantoes_confirmados %}
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Paciente / Endereço</th>
+                        <th>Início / Término</th>
+                        <th>Valor Líquido</th>
+                        <th>Status</th>
+                        <th>Ações em Tempo Real</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pl in plantoes_confirmados %}
+                    <tr>
+                        <td>#{{ pl.id }}</td>
+                        <td>
+                            <strong>{{ pl.paciente_nome or 'Paciente #' ~ pl.paciente_id }}</strong>
+                            <div style="font-size: 0.8rem; color: var(--text-muted);"><i class="fa-solid fa-location-dot"></i> {{ pl.endereco_atendimento }} ({{ pl.cidade }}/{{ pl.uf }})</div>
+                            {% if pl.observacoes %}
+                            <div style="font-size: 0.75rem; color: var(--accent-primary); margin-top: 0.2rem;">{{ pl.observacoes }}</div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div style="font-size: 0.85rem;">{{ pl.inicio }}</div>
+                            <div style="font-size: 0.78rem; color: var(--text-muted);">até {{ pl.fim }}</div>
+                        </td>
+                        <td>
+                            <strong style="color: var(--accent-secondary);">R$ {{ "%.2f"|format(pl.valor_repasse_centavos / 100) }}</strong>
+                        </td>
+                        <td>
+                            {% if pl.status == 'confirmado' %}
+                            <span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> Confirmado</span>
+                            {% elif pl.status == 'em_andamento' %}
+                            <span class="badge badge-info"><i class="fa-solid fa-spinner fa-spin"></i> Em Andamento</span>
+                            {% elif pl.status == 'concluido' %}
+                            <span class="badge badge-success">Concluído</span>
+                            {% else %}
+                            <span class="badge badge-warning">{{ pl.status|title }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if pl.status == 'confirmado' %}
+                            <form action="/plantoes/{{ pl.id }}/checkin" method="POST" style="display:inline;">
+                                <button type="submit" class="btn btn-primary btn-sm">
+                                    <i class="fa-solid fa-location-arrow"></i> Check-in
+                                </button>
+                            </form>
+                            {% elif pl.status == 'em_andamento' %}
+                            <form action="/plantoes/{{ pl.id }}/checkout" method="POST" style="display:inline;">
+                                <button type="submit" class="btn btn-success btn-sm">
+                                    <i class="fa-solid fa-clipboard-check"></i> Check-out
+                                </button>
+                            </form>
+                            {% else %}
+                            <span style="color: var(--text-muted); font-size: 0.85rem;">Concluído</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="card" style="padding: 3rem 1.5rem; text-align: center;">
+            <i class="fa-solid fa-calendar-xmark" style="font-size: 2.5rem; color: var(--text-muted); margin-bottom: 1rem;"></i>
+            <h3 style="color: var(--text-primary); margin-bottom: 0.5rem;">Nenhum plantão agendado no momento</h3>
+            <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Confira os plantões abertos no mural de oportunidades ou aguarde solicitações diretas das famílias.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Aba 2: Oportunidades Abertas -->
+    <div id="tabOportunidades" class="tab-pane">
+        {% if plantoes_abertos %}
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Categoria</th>
+                        <th>Região</th>
+                        <th>Período</th>
+                        <th>Remuneração Líquida</th>
+                        <th>Ação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pl in plantoes_abertos %}
+                    <tr>
+                        <td>#{{ pl.id }}</td>
+                        <td><span class="badge badge-prof">{{ pl.categoria_exigida|replace('_', ' ')|title }}</span></td>
+                        <td>{{ pl.cidade }}/{{ pl.uf }}</td>
+                        <td>{{ pl.inicio }} até {{ pl.fim }}</td>
+                        <td><strong style="color: var(--accent-secondary);">R$ {{ "%.2f"|format(pl.valor_repasse_centavos / 100) }}</strong></td>
+                        <td>
+                            <form action="/plantoes/{{ pl.id }}/aceitar" method="POST" style="display:inline;">
+                                <button type="submit" class="btn btn-primary btn-sm">
+                                    <i class="fa-solid fa-hand-holding-hand"></i> Aceitar Plantão
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="card" style="padding: 3rem 1.5rem; text-align: center;">
+            <i class="fa-solid fa-bullhorn" style="font-size: 2.5rem; color: var(--text-muted); margin-bottom: 1rem;"></i>
+            <h3 style="color: var(--text-primary); margin-bottom: 0.5rem;">Nenhuma oportunidade aberta agora</h3>
+            <p style="color: var(--text-secondary);">Novos plantões solicitados por famílias na sua cidade serão listados aqui em tempo real.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Aba 3: Credenciais -->
+    <div id="tabCredenciais" class="tab-pane">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+            <p style="color: var(--text-secondary); font-size: 0.95rem;">
+                Mantenha seus documentos em dia para garantir o selo de profissional auditado e liberação de plantões.
+            </p>
+            <button class="btn btn-primary btn-sm" onclick="openModal('modalUploadCredencial')">
+                <i class="fa-solid fa-plus"></i> Nova Credencial
+            </button>
+        </div>
+
+        {% if credenciais %}
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Tipo</th>
+                        <th>Formato</th>
+                        <th>Data de Envio</th>
+                        <th>Status</th>
+                        <th>Feedback / Motivo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cr in credenciais %}
+                    <tr>
+                        <td><strong>{{ cr.tipo|upper }}</strong></td>
+                        <td>{{ cr.mime }} ({{ "%.1f"|format(cr.tamanho_bytes / 1024) }} KB)</td>
+                        <td>{{ cr.criado_em }}</td>
+                        <td>
+                            {% if cr.status == 'aprovado' %}
+                            <span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> Aprovado</span>
+                            {% elif cr.status == 'rejeitado' %}
+                            <span class="badge badge-danger"><i class="fa-solid fa-circle-xmark"></i> Rejeitado</span>
+                            {% else %}
+                            <span class="badge badge-warning"><i class="fa-solid fa-hourglass"></i> Em Análise</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {{ cr.motivo_rejeicao or '-' }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="card" style="padding: 3rem 1.5rem; text-align: center;">
+            <i class="fa-solid fa-certificate" style="font-size: 2.5rem; color: var(--text-muted); margin-bottom: 1rem;"></i>
+            <h3 style="color: var(--text-primary); margin-bottom: 0.5rem;">Nenhuma credencial enviada ainda</h3>
+            <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Envie sua carteira do COREN, diploma ou certidão para liberação imediata na rede CuidaHome.</p>
+            <button class="btn btn-primary" onclick="openModal('modalUploadCredencial')">
+                <i class="fa-solid fa-upload"></i> Enviar Primeiro Documento
+            </button>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Aba 4: Extrato de Repasses Líquidos -->
+    <div id="tabRepasses" class="tab-pane">
+        <div class="card" style="padding: 1.25rem; margin-bottom: 1.5rem; background: var(--bg-secondary); border: 1px solid var(--border-color);">
+            <div style="font-size: 0.85rem; color: var(--text-muted);">
+                <i class="fa-solid fa-circle-info" style="color: var(--accent-primary);"></i>
+                <strong>Transparência financeira CuidaHome:</strong> A plataforma retém uma taxa fixa de 12% para custeio de seguros, processamento bancário seguro via Stripe e garantia de pagamento sem inadimplência.
+            </div>
+        </div>
+
+        {% if repasses %}
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>ID Plantão</th>
+                        <th>Valor Bruto</th>
+                        <th>Taxa Plataforma (12%)</th>
+                        <th>Repasse Líquido</th>
+                        <th>Status do Payout</th>
+                        <th>Data de Efetivação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for rep in repasses %}
+                    <tr>
+                        <td>#{{ rep.plantao_id }}</td>
+                        <td>R$ {{ "%.2f"|format(rep.valor_bruto_centavos / 100) }}</td>
+                        <td style="color: #f87171;">- R$ {{ "%.2f"|format(rep.taxa_plataforma_centavos / 100) }}</td>
+                        <td><strong style="color: var(--accent-secondary); font-size: 1.05rem;">R$ {{ "%.2f"|format(rep.valor_liquido_centavos / 100) }}</strong></td>
+                        <td>
+                            {% if rep.status == 'pago' %}
+                            <span class="badge badge-success"><i class="fa-solid fa-check"></i> Pago</span>
+                            {% else %}
+                            <span class="badge badge-warning"><i class="fa-solid fa-clock"></i> Pendente</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ rep.pago_em or 'Aguardando processamento' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="card" style="padding: 3rem 1.5rem; text-align: center;">
+            <i class="fa-solid fa-receipt" style="font-size: 2.5rem; color: var(--text-muted); margin-bottom: 1rem;"></i>
+            <h3 style="color: var(--text-primary); margin-bottom: 0.5rem;">Nenhum repasse registrado ainda</h3>
+            <p style="color: var(--text-secondary);">Os valores de plantões concluídos e confirmados aparecerão discriminados aqui.</p>
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+
+<!-- Modal: Envio de Credencial -->
+<div id="modalUploadCredencial" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary);">Upload de Credencial Profissional</h3>
+            <button class="modal-close" onclick="closeModal('modalUploadCredencial')">&times;</button>
+        </div>
+        <form action="/profissionais/credenciais/upload" method="POST" enctype="multipart/form-data">
+            <div class="form-group">
+                <label class="form-label">Tipo de Documento *</label>
+                <select name="tipo" required class="form-select">
+                    <option value="coren">Carteira do COREN / Registro Profissional</option>
+                    <option value="diploma">Diploma / Certificado de Conclusão</option>
+                    <option value="antecedentes">Atestado de Antecedentes Criminais</option>
+                    <option value="documento_identidade">Documento de Identidade com Foto (RG/CNH)</option>
+                    <option value="certificado_curso">Certificado de Especialização ou Curso de Cuidador</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Arquivo do Documento (PDF, JPG ou PNG - até 10 MB) *</label>
+                <input type="file" name="arquivo" required accept=".pdf,image/jpeg,image/png" class="form-input">
+                <div class="form-help">Armazenamento privado em bucket protegido contra acesso não autorizado.</div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-full" style="margin-top: 1rem;">
+                <i class="fa-solid fa-cloud-arrow-up"></i> Enviar para Análise
+            </button>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function switchTab(tabId) {
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+    document.getElementById(tabId).classList.add('active');
+}
+
+function openModal(modalId) {
+    document.getElementById(modalId).classList.add('open');
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).classList.remove('open');
+}
+</script>
+{% endblock %}

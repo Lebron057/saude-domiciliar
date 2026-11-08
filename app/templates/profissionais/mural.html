@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Mural de Cuidadores e Enfermagem Certificada — CuidaHome{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+
+    <div style="margin-bottom: 2.5rem;">
+        <div style="display: inline-flex; align-items: center; gap: 0.5rem; color: var(--accent-primary); font-size: 0.85rem; font-weight: 700; text-transform: uppercase; margin-bottom: 0.5rem;">
+            <i class="fa-solid fa-user-nurse"></i> Escala e Assistência
+        </div>
+        <h1 style="font-size: 2.2rem; font-weight: 800; color: var(--text-primary); margin-bottom: 0.5rem;">
+            Mural de Profissionais de Saúde
+        </h1>
+        <p style="color: var(--text-secondary); max-width: 750px; font-size: 1rem;">
+            Encontre cuidadores de idosos e enfermeiros qualificados, com diplomas auditados e registro ativo no COREN. Solicite plantões diurnos, noturnos ou de 24 horas diretamente pelo painel.
+        </p>
+    </div>
+
+    <!-- Barra de Filtros de Profissionais -->
+    <div class="filter-bar">
+        <div class="filter-pills">
+            <a href="/profissionais" class="filter-pill {{ 'active' if not selected_categoria else '' }}">
+                <i class="fa-solid fa-users"></i> Todos os Profissionais
+            </a>
+            <a href="/profissionais?categoria=cuidador" class="filter-pill {{ 'active' if selected_categoria == 'cuidador' else '' }}">
+                <i class="fa-solid fa-hand-holding-heart"></i> Cuidadores de Idosos
+            </a>
+            <a href="/profissionais?categoria=tecnico_enfermagem" class="filter-pill {{ 'active' if selected_categoria == 'tecnico_enfermagem' else '' }}">
+                <i class="fa-solid fa-stethoscope"></i> Técnicos de Enfermagem
+            </a>
+            <a href="/profissionais?categoria=enfermeiro" class="filter-pill {{ 'active' if selected_categoria == 'enfermeiro' else '' }}">
+                <i class="fa-solid fa-user-doctor"></i> Enfermeiros(as)
+            </a>
+        </div>
+
+        <form action="/profissionais" method="GET" style="display: flex; gap: 0.5rem; flex-grow: 1; max-width: 380px;">
+            {% if selected_categoria %}
+            <input type="hidden" name="categoria" value="{{ selected_categoria }}">
+            {% endif %}
+            <input type="text" name="busca" value="{{ busca or '' }}" placeholder="Buscar por nome ou cidade..." class="form-input" style="padding: 0.45rem 0.9rem; font-size: 0.88rem;">
+            <button type="submit" class="btn btn-secondary btn-sm"><i class="fa-solid fa-magnifying-glass"></i></button>
+        </form>
+    </div>
+
+    <!-- Grade de Profissionais -->
+    <div class="grid-cards">
+        {% if profissionais %}
+            {% for prof in profissionais %}
+            <div class="card professional-card" style="padding: 1.5rem;">
+                <div>
+                    <div class="prof-header">
+                        <div class="prof-avatar">
+                            {% if prof.avatar_key %}
+                            <img src="/storage/avatars/{{ prof.avatar_key }}" alt="{{ prof.nome }}">
+                            {% else %}
+                            {{ prof.nome[0]|upper }}
+                            {% endif %}
+                        </div>
+                        <div class="prof-info">
+                            <h3>{{ prof.nome }}</h3>
+                            <div class="prof-category">
+                                {% if prof.categoria == 'enfermeiro' %}
+                                <i class="fa-solid fa-user-doctor"></i> Enfermeiro(a)
+                                {% elif prof.categoria == 'tecnico_enfermagem' %}
+                                <i class="fa-solid fa-stethoscope"></i> Técnico de Enfermagem
+                                {% else %}
+                                <i class="fa-solid fa-hand-holding-heart"></i> Cuidador(a) de Idosos
+                                {% endif %}
+                            </div>
+                            <div class="prof-rating">
+                                <i class="fa-solid fa-star"></i>
+                                <strong>{{ "%.2f"|format(prof.nota_media or 5.0) }}</strong>
+                                <span style="color: var(--text-muted);">({{ prof.total_avaliacoes or 0 }} avaliações)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="prof-body">
+                        {% if prof.registro_conselho %}
+                        <div style="margin-bottom: 0.8rem;">
+                            <span class="badge badge-coren">
+                                <i class="fa-solid fa-certificate"></i> {{ prof.registro_conselho }} ({{ prof.uf_conselho or 'SP' }})
+                            </span>
+                        </div>
+                        {% endif %}
+                        <p class="prof-bio">{{ prof.apresentacao or 'Profissional com ampla experiência em atenção domiciliar personalizada e cuidado humanizado de alta qualidade.' }}</p>
+                        <div class="prof-meta">
+                            <div class="prof-meta-item">
+                                <i class="fa-solid fa-location-dot" style="color: var(--accent-primary);"></i>
+                                <span>{{ prof.cidade }} - {{ prof.uf }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="prof-footer">
+                    <div class="prof-price">
+                        <span class="amount">R$ {{ "%.2f"|format((prof.valor_diaria_12h_centavos or 15000) / 100) }}</span>
+                        <span class="period">diária 12h</span>
+                    </div>
+                    <a href="/profissionais/{{ prof.id }}" class="btn btn-primary btn-sm">
+                        <i class="fa-solid fa-calendar-plus"></i> Solicitar
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div style="grid-column: 1 / -1; text-align: center; padding: 4rem 1rem; background: var(--bg-card); border-radius: var(--radius-lg); border: 1px solid var(--border-color);">
+                <i class="fa-solid fa-user-slash" style="font-size: 3rem; color: var(--text-muted); margin-bottom: 1rem;"></i>
+                <h3 style="color: var(--text-primary); margin-bottom: 0.5rem;">Nenhum profissional encontrado</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Tente ajustar os filtros ou a cidade pesquisada.</p>
+                <a href="/profissionais" class="btn btn-secondary btn-sm">Limpar Filtros</a>
+            </div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

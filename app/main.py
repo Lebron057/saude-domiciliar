@@ -184,12 +184,46 @@ async def health_check():
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request, message: str = None, error: str = None):
     user = await _get_user_or_none(request)
+    profissionais = []
+    equipamentos = []
+    try:
+        with get_connection() as conn:
+            with conn.cursor(dictionary=True) as cur:
+                # Busca até 6 profissionais verificados (DoD 2: apenas status_verificacao = 'aprovado')
+                cur.execute(
+                    """SELECT u.id, u.nome, u.avatar_key, p.categoria, p.registro_conselho, p.uf_conselho,
+                              p.valor_diaria_12h_centavos, p.valor_diaria_24h_centavos, p.cidade, p.uf,
+                              p.nota_media, p.total_avaliacoes, p.apresentacao
+                       FROM perfis_profissionais p
+                       JOIN usuarios u ON u.id = p.usuario_id
+                       WHERE p.status_verificacao = 'aprovado'
+                       ORDER BY p.nota_media DESC, p.total_avaliacoes DESC
+                       LIMIT 6"""
+                )
+                profissionais = cur.fetchall()
+
+                # Busca até 6 equipamentos ativos com contagem de unidades disponíveis
+                cur.execute(
+                    """SELECT e.*, c.nome as categoria_nome, c.icone as categoria_icone,
+                              (SELECT COUNT(*) FROM unidades_equipamento u WHERE u.equipamento_id = e.id AND u.status = 'disponivel') as unidades_disponiveis
+                       FROM equipamentos e
+                       JOIN categorias_equipamento c ON c.id = e.categoria_id
+                       WHERE e.ativo = TRUE
+                       ORDER BY e.id ASC
+                       LIMIT 6"""
+                )
+                equipamentos = cur.fetchall()
+    except Exception as e:
+        print(f"[Root] Erro ao carregar vitrine: {e}")
+
     return templates.TemplateResponse("landing.html", {
         "request": request,
         "user": user,
         "active_page": "home",
         "message": message,
         "error": error,
+        "profissionais": profissionais,
+        "equipamentos": equipamentos,
     })
 
 
@@ -699,44 +733,739 @@ async def catalog_redirect():
 
 
 @app.get("/equipamentos", response_class=HTMLResponse)
-async def equipamentos_page(request: Request):
-    """Catálogo de equipamentos ortopédicos para locação."""
+async def equipamentos_page(
+    request: Request,
+    categoria: str = None,
+    busca: str = None,
+    message: str = None,
+    error: str = None,
+):
+    """Catálogo público de equipamentos ortopédicos para locação."""
     user = await _get_user_or_none(request)
-    return templates.TemplateResponse("landing.html", {
+    categorias = []
+    equipamentos = []
+    try:
+        with get_connection() as conn:
+            with conn.cursor(dictionary=True) as cur:
+                cur.execute("SELECT * FROM categorias_equipamento WHERE ativo = TRUE ORDER BY nome ASC")
+                categorias = cur.fetchall()
+
+                query = """
+                    SELECT e.*, c.nome as categoria_nome, c.icone as categoria_icone, c.slug as categoria_slug,
+                           (SELECT COUNT(*) FROM unidades_equipamento u WHERE u.equipamento_id = e.id AND u.status = 'disponivel') as unidades_disponiveis
+                    FROM equipamentos e
+                    JOIN categorias_equipamento c ON c.id = e.categoria_id
+                    WHERE e.ativo = TRUE
+                """
+                params = []
+                if categoria:
+                    query += " AND c.slug = %s"
+                    params.append(categoria)
+                if busca:
+                    query += " AND (e.nome LIKE %s OR e.descricao LIKE %s)"
+                    params.extend([f"%{busca}%", f"%{busca}%"])
+                query += " ORDER BY e.id ASC"
+
+                cur.execute(query, tuple(params))
+                equipamentos = cur.fetchall()
+    except Exception as e:
+        error = f"Erro ao consultar catálogo: {e}"
+
+    return templates.TemplateResponse("equipamentos/catalogo.html", {
         "request": request,
         "user": user,
         "active_page": "equipamentos",
-        "message": "Catálogo de equipamentos ortopédicos e hospitalares disponível para locação.",
-        "error": None,
+        "categorias": categorias,
+        "equipamentos": equipamentos,
+        "selected_categoria": categoria,
+        "busca": busca,
+        "message": message,
+        "error": error,
+    })
+
+
+@app.get("/equipamentos/{equipamento_id}", response_class=HTMLResponse)
+async def equipamento_detalhe_page(
+    request: Request,
+    equipamento_id: int,
+    message: str = None,
+    error: str = None,
+):
+    """Página de detalhe de equipamento e contratação de locação."""
+    user = await _get_user_or_none(request)
+    equipamento = None
+    categoria = None
+    unidades_disponiveis = 0
+    pacientes = []
+
+    try:
+        with get_connection() as conn:
+            with conn.cursor(dictionary=True) as cur:
+                cur.execute("SELECT * FROM equipamentos WHERE id = %s AND ativo = TRUE", (equipamento_id,))
+                equipamento = cur.fetchone()
+                if not equipamento:
+                    raise HTTPException(status_code=404, detail="Equipamento não encontrado.")
+
+                cur.execute("SELECT * FROM categorias_equipamento WHERE id = %s", (equipamento["categoria_id"],))
+                categoria = cur.fetchone()
+
+                cur.execute(
+                    "SELECT COUNT(*) as total FROM unidades_equipamento WHERE equipamento_id = %s AND status = 'disponivel'",
+                    (equipamento_id,),
+                )
+                res_unid = cur.fetchone()
+                unidades_disponiveis = res_unid["total"] if res_unid else 0
+
+                if user:
+                    cur.execute("SELECT * FROM pacientes WHERE familiar_id = %s AND ativo = TRUE", (user["id"],))
+                    pacientes = cur.fetchall()
+    except HTTPException:
+        raise
+    except Exception as e:
+        error = f"Erro ao carregar detalhes: {e}"
+
+    return templates.TemplateResponse("equipamentos/detalhe.html", {
+        "request": request,
+        "user": user,
+        "active_page": "equipamentos",
+        "equipamento": equipamento,
+        "categoria": categoria,
+        "unidades_disponiveis": unidades_disponiveis,
+        "pacientes": pacientes,
+        "message": message,
+        "error": error,
     })
 
 
 @app.get("/profissionais", response_class=HTMLResponse)
-async def profissionais_page(request: Request):
-    """Mural de cuidadores e profissionais de enfermagem."""
+async def profissionais_page(
+    request: Request,
+    categoria: str = None,
+    busca: str = None,
+    message: str = None,
+    error: str = None,
+):
+    """Mural público de plantões e profissionais de saúde certificados."""
     user = await _get_user_or_none(request)
-    return templates.TemplateResponse("landing.html", {
+    profissionais = []
+    try:
+        with get_connection() as conn:
+            with conn.cursor(dictionary=True) as cur:
+                # Critério de Aceitação DoD 2: Apenas status_verificacao = 'aprovado'
+                query = """
+                    SELECT u.id, u.nome, u.avatar_key, p.categoria, p.registro_conselho, p.uf_conselho,
+                           p.valor_diaria_12h_centavos, p.valor_diaria_24h_centavos, p.cidade, p.uf,
+                           p.nota_media, p.total_avaliacoes, p.apresentacao
+                    FROM perfis_profissionais p
+                    JOIN usuarios u ON u.id = p.usuario_id
+                    WHERE p.status_verificacao = 'aprovado'
+                """
+                params = []
+                if categoria:
+                    query += " AND p.categoria = %s"
+                    params.append(categoria)
+                if busca:
+                    query += " AND (u.nome LIKE %s OR p.cidade LIKE %s OR p.apresentacao LIKE %s)"
+                    params.extend([f"%{busca}%", f"%{busca}%", f"%{busca}%"])
+                query += " ORDER BY p.nota_media DESC, p.total_avaliacoes DESC"
+
+                cur.execute(query, tuple(params))
+                profissionais = cur.fetchall()
+    except Exception as e:
+        error = f"Erro ao consultar profissionais: {e}"
+
+    return templates.TemplateResponse("profissionais/mural.html", {
         "request": request,
         "user": user,
         "active_page": "profissionais",
-        "message": "Mural de plantões e profissionais de saúde certificados.",
-        "error": None,
+        "profissionais": profissionais,
+        "selected_categoria": categoria,
+        "busca": busca,
+        "message": message,
+        "error": error,
     })
 
 
+@app.get("/profissionais/{usuario_id}", response_class=HTMLResponse)
+async def profissional_detalhe_page(
+    request: Request,
+    usuario_id: int,
+    message: str = None,
+    error: str = None,
+):
+    """Perfil detalhado de um cuidador ou profissional de enfermagem."""
+    user = await _get_user_or_none(request)
+    profissional = None
+    pacientes = []
+
+    try:
+        with get_connection() as conn:
+            with conn.cursor(dictionary=True) as cur:
+                cur.execute(
+                    """SELECT u.id, u.nome, u.avatar_key, p.usuario_id, p.categoria, p.registro_conselho, p.uf_conselho,
+                              p.valor_diaria_12h_centavos, p.valor_diaria_24h_centavos, p.cidade, p.uf,
+                              p.raio_atendimento_km, p.aceita_emergencial, p.apresentacao,
+                              p.nota_media, p.total_avaliacoes, p.status_verificacao
+                       FROM perfis_profissionais p
+                       JOIN usuarios u ON u.id = p.usuario_id
+                       WHERE u.id = %s""",
+                    (usuario_id,),
+                )
+                profissional = cur.fetchone()
+                if not profissional:
+                    raise HTTPException(status_code=404, detail="Profissional não encontrado.")
+
+                if user:
+                    cur.execute("SELECT * FROM pacientes WHERE familiar_id = %s AND ativo = TRUE", (user["id"],))
+                    pacientes = cur.fetchall()
+    except HTTPException:
+        raise
+    except Exception as e:
+        error = f"Erro ao consultar perfil: {e}"
+
+    return templates.TemplateResponse("profissionais/detalhe.html", {
+        "request": request,
+        "user": user,
+        "active_page": "profissionais",
+        "profissional": profissional,
+        "pacientes": pacientes,
+        "message": message,
+        "error": error,
+    })
+
+
+# ══════════════════════════════════════════════════════════
+#  PAINÉIS POR PAPEL (Issue #11)
+# ══════════════════════════════════════════════════════════
+
 @app.get("/painel/familia", response_class=HTMLResponse)
-async def painel_familia_page(request: Request):
-    """Área privativa para acompanhamento dos plantões e locações da família."""
+async def painel_familia_page(request: Request, message: str = None, error: str = None):
+    """Área privativa do familiar / paciente."""
     user = await _get_user_or_none(request)
     if not user:
         return RedirectResponse(url="/login", status_code=302)
-    return templates.TemplateResponse("landing.html", {
+
+    pacientes = []
+    plantoes = []
+    locacoes = []
+
+    try:
+        with get_connection() as conn:
+            with conn.cursor(dictionary=True) as cur:
+                # Pacientes vinculados
+                cur.execute("SELECT * FROM pacientes WHERE familiar_id = %s AND ativo = TRUE ORDER BY id DESC", (user["id"],))
+                pacientes = cur.fetchall()
+
+                # Plantões contratados
+                cur.execute(
+                    """SELECT pl.*, pac.nome as paciente_nome, prof.nome as profissional_nome,
+                              (SELECT COUNT(*) FROM avaliacoes a WHERE a.plantao_id = pl.id) as ja_avaliado
+                       FROM plantoes pl
+                       JOIN pacientes pac ON pac.id = pl.paciente_id
+                       LEFT JOIN usuarios prof ON prof.id = pl.profissional_id
+                       WHERE pl.familiar_id = %s
+                       ORDER BY pl.inicio DESC""",
+                    (user["id"],),
+                )
+                plantoes = cur.fetchall()
+
+                # Locações de equipamentos
+                cur.execute(
+                    """SELECT loc.*, eq.nome as equipamento_nome, eq.preco_mensal_centavos, eq.valor_caucao_centavos,
+                              unid.numero_patrimonio
+                       FROM locacoes loc
+                       JOIN equipamentos eq ON eq.id = loc.equipamento_id
+                       LEFT JOIN unidades_equipamento unid ON unid.id = loc.unidade_id
+                       WHERE loc.cliente_id = %s
+                       ORDER BY loc.id DESC""",
+                    (user["id"],),
+                )
+                locacoes = cur.fetchall()
+    except Exception as e:
+        error = f"Erro ao carregar dados do painel: {e}"
+
+    return templates.TemplateResponse("paineis/familia.html", {
         "request": request,
         "user": user,
-        "active_page": "home",
-        "message": f"Bem-vindo ao Painel da Família, {user.get('nome')}!",
-        "error": None,
+        "active_page": "painel_familia",
+        "pacientes": pacientes,
+        "plantoes": plantoes,
+        "locacoes": locacoes,
+        "message": message,
+        "error": error,
     })
+
+
+@app.post("/pacientes/cadastrar", response_class=HTMLResponse)
+async def cadastrar_paciente_submit(
+    request: Request,
+    nome: str = Form(...),
+    data_nascimento: str = Form(None),
+    cidade: str = Form(...),
+    uf: str = Form(...),
+    mobilidade: str = Form("mobilidade_reduzida"),
+    condicao_resumo: str = Form(None),
+    alergias_restricoes: str = Form(None),
+    contato_emergencia: str = Form(None),
+):
+    """Cadastra um paciente dependente vinculado ao familiar logado."""
+    user = await _get_user_or_none(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO pacientes (familiar_id, nome, data_nascimento, cidade, uf,
+                                              mobilidade, condicao_resumo, alergias_restricoes, contato_emergencia, ativo)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE)""",
+                    (
+                        user["id"],
+                        nome,
+                        data_nascimento if data_nascimento else None,
+                        cidade,
+                        uf.upper(),
+                        mobilidade,
+                        condicao_resumo,
+                        alergias_restricoes,
+                        contato_emergencia,
+                    ),
+                )
+                conn.commit()
+
+        await _emit_log(
+            usuario_id=user["id"],
+            acao="paciente_cadastrado",
+            detalhe=f"Paciente {nome} cadastrado pelo familiar {user['nome']}",
+            ip_origem=_get_client_ip(request),
+            categoria="paciente",
+            ator_role=user.get("role"),
+        )
+        return RedirectResponse(url="/painel/familia?message=Paciente+cadastrado+com+sucesso!", status_code=302)
+    except Exception as e:
+        return RedirectResponse(url=f"/painel/familia?error=Erro+ao+cadastrar+paciente:+{e}", status_code=302)
+
+
+@app.post("/plantoes/solicitar", response_class=HTMLResponse)
+async def solicitar_plantao_submit(
+    request: Request,
+    profissional_id: int = Form(...),
+    paciente_id: int = Form(...),
+    inicio: str = Form(...),
+    fim: str = Form(...),
+    endereco_atendimento: str = Form(...),
+    cidade: str = Form(...),
+    uf: str = Form(...),
+    urgencia: str = Form("agendado"),
+    categoria_exigida: str = Form("cuidador"),
+    observacoes: str = Form(None),
+):
+    """Processa solicitação de plantão direto pelo familiar."""
+    user = await _get_user_or_none(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    try:
+        # Calcular valor e taxas com base na diária do profissional
+        with get_connection() as conn:
+            with conn.cursor(dictionary=True) as cur:
+                cur.execute(
+                    "SELECT valor_diaria_12h_centavos, valor_diaria_24h_centavos FROM perfis_profissionais WHERE usuario_id = %s",
+                    (profissional_id,),
+                )
+                prof_perfil = cur.fetchone()
+                valor_diaria = prof_perfil["valor_diaria_12h_centavos"] if prof_perfil else 15000
+
+                taxa_pct = 12.00
+                taxa_centavos = int(valor_diaria * (taxa_pct / 100.0))
+                valor_repasse = valor_diaria - taxa_centavos
+
+                cur.execute(
+                    """INSERT INTO plantoes (
+                           familiar_id, paciente_id, profissional_id, modalidade, urgencia,
+                           categoria_exigida, inicio, fim, endereco_atendimento, cidade, uf,
+                           valor_diaria_centavos, taxa_percentual, taxa_centavos, valor_repasse_centavos,
+                           status, observacoes
+                       ) VALUES (%s, %s, %s, 'direto', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'solicitado', %s)""",
+                    (
+                        user["id"],
+                        paciente_id,
+                        profissional_id,
+                        urgencia,
+                        categoria_exigida,
+                        inicio,
+                        fim,
+                        endereco_atendimento,
+                        cidade,
+                        uf.upper(),
+                        valor_diaria,
+                        taxa_pct,
+                        taxa_centavos,
+                        valor_repasse,
+                        observacoes,
+                    ),
+                )
+                plantao_id = cur.lastrowid
+                conn.commit()
+
+        await _emit_log(
+            usuario_id=user["id"],
+            acao="plantao_solicitado",
+            detalhe=f"Plantão #{plantao_id} solicitado para profissional #{profissional_id}",
+            ip_origem=_get_client_ip(request),
+            categoria="plantao",
+            ator_role=user.get("role"),
+            entidade="plantao",
+            entidade_id=plantao_id,
+        )
+        return RedirectResponse(url="/painel/familia?message=Solicitacao+de+plantao+enviada+ao+profissional!", status_code=302)
+    except Exception as e:
+        return RedirectResponse(url=f"/painel/familia?error=Erro+ao+solicitar+plantao:+{e}", status_code=302)
+
+
+@app.get("/painel/profissional", response_class=HTMLResponse)
+async def painel_profissional_page(request: Request, message: str = None, error: str = None):
+    """Área privativa do cuidador ou enfermeiro."""
+    user = await _get_user_or_none(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    # RBAC: Somente profissional de saúde ou admin
+    if user.get("role") not in ["profissional_saude", "admin"]:
+        raise HTTPException(status_code=403, detail="Acesso exclusivo para profissionais de saúde.")
+
+    perfil = None
+    plantoes_confirmados = []
+    plantoes_abertos = []
+    credenciais = []
+    repasses = []
+    total_liquido_centavos = 0
+
+    try:
+        with get_connection() as conn:
+            with conn.cursor(dictionary=True) as cur:
+                # Perfil profissional
+                cur.execute("SELECT * FROM perfis_profissionais WHERE usuario_id = %s", (user["id"],))
+                perfil = cur.fetchone()
+
+                # Plantões confirmados e em andamento
+                cur.execute(
+                    """SELECT pl.*, pac.nome as paciente_nome
+                       FROM plantoes pl
+                       JOIN pacientes pac ON pac.id = pl.paciente_id
+                       WHERE pl.profissional_id = %s AND pl.status IN ('confirmado', 'em_andamento', 'concluido')
+                       ORDER BY pl.inicio ASC""",
+                    (user["id"],),
+                )
+                plantoes_confirmados = cur.fetchall()
+
+                # Oportunidades em aberto na cidade/região
+                cur.execute(
+                    """SELECT * FROM plantoes
+                       WHERE status = 'aberto'
+                       ORDER BY inicio ASC LIMIT 20"""
+                )
+                plantoes_abertos = cur.fetchall()
+
+                # Central de Credenciais
+                cur.execute("SELECT * FROM credenciais WHERE usuario_id = %s ORDER BY criado_em DESC", (user["id"],))
+                credenciais = cur.fetchall()
+
+                # Extrato financeiro de repasses
+                cur.execute(
+                    """SELECT * FROM repasses
+                       WHERE profissional_id = %s
+                       ORDER BY id DESC""",
+                    (user["id"],),
+                )
+                repasses = cur.fetchall()
+                total_liquido_centavos = sum(r["valor_liquido_centavos"] for r in repasses)
+    except Exception as e:
+        error = f"Erro ao consultar painel do profissional: {e}"
+
+    return templates.TemplateResponse("paineis/profissional.html", {
+        "request": request,
+        "user": user,
+        "active_page": "painel_profissional",
+        "perfil": perfil,
+        "plantoes_confirmados": plantoes_confirmados,
+        "plantoes_abertos": plantoes_abertos,
+        "credenciais": credenciais,
+        "repasses": repasses,
+        "total_liquido_centavos": total_liquido_centavos,
+        "message": message,
+        "error": error,
+    })
+
+
+@app.get("/painel/fornecedor", response_class=HTMLResponse)
+async def painel_fornecedor_page(request: Request, message: str = None, error: str = None):
+    """Área privativa do fornecedor de equipamentos hospitalares."""
+    user = await _get_user_or_none(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    # RBAC: Fornecedor ou admin
+    if user.get("role") not in ["fornecedor_equipamento", "admin"]:
+        raise HTTPException(status_code=403, detail="Acesso exclusivo para fornecedores de equipamentos.")
+
+    equipamentos = []
+    locacoes_ativas = []
+    devolucoes_pendentes = []
+    total_unidades_disponiveis = 0
+    total_unidades_locadas = 0
+
+    try:
+        with get_connection() as conn:
+            with conn.cursor(dictionary=True) as cur:
+                # Equipamentos e contagem de unidades
+                cur.execute(
+                    """SELECT e.*, c.nome as categoria_nome,
+                              (SELECT COUNT(*) FROM unidades_equipamento u WHERE u.equipamento_id = e.id AND u.status = 'disponivel') as unidades_disponiveis,
+                              (SELECT COUNT(*) FROM unidades_equipamento u WHERE u.equipamento_id = e.id AND u.status = 'locado') as unidades_locadas
+                       FROM equipamentos e
+                       JOIN categorias_equipamento c ON c.id = e.categoria_id
+                       ORDER BY e.id ASC"""
+                )
+                equipamentos = cur.fetchall()
+                for eq in equipamentos:
+                    total_unidades_disponiveis += eq.get("unidades_disponiveis", 0)
+                    total_unidades_locadas += eq.get("unidades_locadas", 0)
+
+                # Fila logística
+                cur.execute(
+                    """SELECT loc.*, eq.nome as equipamento_nome, u.nome as cliente_nome, unid.numero_patrimonio
+                       FROM locacoes loc
+                       JOIN equipamentos eq ON eq.id = loc.equipamento_id
+                       JOIN usuarios u ON u.id = loc.cliente_id
+                       LEFT JOIN unidades_equipamento unid ON unid.id = loc.unidade_id
+                       WHERE loc.status IN ('em_separacao', 'despachada', 'entregue')
+                       ORDER BY loc.id DESC"""
+                )
+                locacoes_ativas = cur.fetchall()
+
+                # Vistorias pendentes de devolução
+                cur.execute(
+                    """SELECT loc.*, eq.nome as equipamento_nome, eq.valor_caucao_centavos, u.nome as cliente_nome, unid.numero_patrimonio
+                       FROM locacoes loc
+                       JOIN equipamentos eq ON eq.id = loc.equipamento_id
+                       JOIN usuarios u ON u.id = loc.cliente_id
+                       LEFT JOIN unidades_equipamento unid ON unid.id = loc.unidade_id
+                       WHERE loc.status = 'devolucao_solicitada'
+                       ORDER BY loc.id DESC"""
+                )
+                devolucoes_pendentes = cur.fetchall()
+    except Exception as e:
+        error = f"Erro ao consultar painel do fornecedor: {e}"
+
+    return templates.TemplateResponse("paineis/fornecedor.html", {
+        "request": request,
+        "user": user,
+        "active_page": "painel_fornecedor",
+        "equipamentos": equipamentos,
+        "locacoes_ativas": locacoes_ativas,
+        "devolucoes_pendentes": devolucoes_pendentes,
+        "total_unidades_disponiveis": total_unidades_disponiveis,
+        "total_unidades_locadas": total_unidades_locadas,
+        "message": message,
+        "error": error,
+    })
+
+
+@app.post("/fornecedor/unidades/nova", response_class=HTMLResponse)
+async def cadastrar_unidade_submit(
+    request: Request,
+    equipamento_id: int = Form(...),
+    numero_patrimonio: str = Form(...),
+    numero_serie: str = Form(None),
+):
+    """Cadastra uma nova unidade patrimonial em estoque."""
+    user = await _get_user_or_none(request)
+    if not user or user.get("role") not in ["fornecedor_equipamento", "admin"]:
+        raise HTTPException(status_code=403, detail="Não autorizado.")
+
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO unidades_equipamento (equipamento_id, numero_patrimonio, numero_serie, status)
+                       VALUES (%s, %s, %s, 'disponivel')""",
+                    (equipamento_id, numero_patrimonio.strip().upper(), numero_serie.strip() if numero_serie else None),
+                )
+                conn.commit()
+
+        await _emit_log(
+            usuario_id=user["id"],
+            acao="unidade_equipamento_cadastrada",
+            detalhe=f"Unidade patrimônio {numero_patrimonio} adicionada ao equipamento #{equipamento_id}",
+            ip_origem=_get_client_ip(request),
+            categoria="equipamento",
+            ator_role=user.get("role"),
+        )
+        return RedirectResponse(url="/painel/fornecedor?message=Nova+unidade+registrada+no+estoque!", status_code=302)
+    except Exception as e:
+        return RedirectResponse(url=f"/painel/fornecedor?error=Erro+ao+cadastrar+unidade:+{e}", status_code=302)
+
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_painel_page(request: Request, message: str = None, error: str = None):
+    """Painel Executivo e Moderação de Credenciais — Apenas Admin."""
+    user = await _get_user_or_none(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    if user.get("role") != "admin":
+        await _emit_log(
+            usuario_id=user["id"],
+            acao="acesso_negado_403",
+            detalhe="Tentativa de acessar /admin sem privilégios",
+            ip_origem=_get_client_ip(request),
+        )
+        raise HTTPException(status_code=403, detail="Acesso negado: somente administradores.")
+
+    credenciais_pendentes = []
+    total_usuarios = 0
+    total_gmv_centavos = 0
+    total_locacoes_ativas = 0
+
+    try:
+        with get_connection() as conn:
+            with conn.cursor(dictionary=True) as cur:
+                # Contagem de usuários
+                cur.execute("SELECT COUNT(*) as total FROM usuarios")
+                res_u = cur.fetchone()
+                total_usuarios = res_u["total"] if res_u else 0
+
+                # GMV total
+                cur.execute("SELECT SUM(valor_diaria_centavos) as gmv FROM plantoes WHERE status IN ('confirmado', 'concluido')")
+                res_gmv = cur.fetchone()
+                total_gmv_centavos = res_gmv["gmv"] if res_gmv and res_gmv["gmv"] else 0
+
+                # Locações ativas
+                cur.execute("SELECT COUNT(*) as total FROM locacoes WHERE status IN ('despachada', 'entregue')")
+                res_loc = cur.fetchone()
+                total_locacoes_ativas = res_loc["total"] if res_loc else 0
+
+                # Credenciais aguardando moderação
+                cur.execute(
+                    """SELECT c.*, u.nome as usuario_nome, u.email as usuario_email
+                       FROM credenciais c
+                       JOIN usuarios u ON u.id = c.usuario_id
+                       WHERE c.status = 'pendente'
+                       ORDER BY c.criado_em ASC"""
+                )
+                credenciais_pendentes = cur.fetchall()
+    except Exception as e:
+        error = f"Erro ao consultar métricas administrativas: {e}"
+
+    return templates.TemplateResponse("paineis/admin.html", {
+        "request": request,
+        "user": user,
+        "active_page": "admin_painel",
+        "credenciais_pendentes": credenciais_pendentes,
+        "total_usuarios": total_usuarios,
+        "total_gmv_centavos": total_gmv_centavos,
+        "total_locacoes_ativas": total_locacoes_ativas,
+        "message": message,
+        "error": error,
+    })
+
+
+@app.post("/admin/credenciais/{credencial_id}/aprovar")
+async def aprovar_credencial_submit(request: Request, credencial_id: int):
+    """Aprova a credencial do profissional e o ativa na rede (DoD 3 de Issue #11)."""
+    user = await _get_user_or_none(request)
+    if not user or user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Acesso restrito ao administrador.")
+
+    try:
+        with get_connection() as conn:
+            with conn.cursor(dictionary=True) as cur:
+                cur.execute("SELECT usuario_id, tipo FROM credenciais WHERE id = %s", (credencial_id,))
+                cred = cur.fetchone()
+                if not cred:
+                    raise HTTPException(status_code=404, detail="Credencial não encontrada.")
+
+                cur.execute(
+                    """UPDATE credenciais
+                       SET status = 'aprovado', motivo_rejeicao = NULL, revisado_por = %s, revisado_em = NOW()
+                       WHERE id = %s""",
+                    (user["id"], credencial_id),
+                )
+
+                # Atualiza perfil profissional para aprovado (DoD 3)
+                cur.execute(
+                    """UPDATE perfis_profissionais
+                       SET status_verificacao = 'aprovado', verificado_por = %s, verificado_em = NOW()
+                       WHERE usuario_id = %s""",
+                    (user["id"], cred["usuario_id"]),
+                )
+                conn.commit()
+
+        await _emit_log(
+            usuario_id=user["id"],
+            acao="credencial_aprovada",
+            detalhe=f"Credencial #{credencial_id} ({cred['tipo']}) aprovada para profissional #{cred['usuario_id']}",
+            ip_origem=_get_client_ip(request),
+            categoria="credencial",
+            ator_role="admin",
+            entidade="credencial",
+            entidade_id=credencial_id,
+        )
+        return RedirectResponse(url="/admin?message=Credencial+aprovada!+Profissional+liberado+para+plantões.", status_code=302)
+    except Exception as e:
+        return RedirectResponse(url=f"/admin?error=Erro+ao+aprovar+credencial:+{e}", status_code=302)
+
+
+@app.post("/admin/credenciais/{credencial_id}/rejeitar")
+async def rejeitar_credencial_submit(
+    request: Request,
+    credencial_id: int,
+    motivo_rejeicao: str = Form(...),
+):
+    """Rejeita a credencial informando a justificativa técnica."""
+    user = await _get_user_or_none(request)
+    if not user or user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Acesso restrito ao administrador.")
+
+    try:
+        with get_connection() as conn:
+            with conn.cursor(dictionary=True) as cur:
+                cur.execute("SELECT usuario_id, tipo FROM credenciais WHERE id = %s", (credencial_id,))
+                cred = cur.fetchone()
+                if not cred:
+                    raise HTTPException(status_code=404, detail="Credencial não encontrada.")
+
+                cur.execute(
+                    """UPDATE credenciais
+                       SET status = 'rejeitado', motivo_rejeicao = %s, revisado_por = %s, revisado_em = NOW()
+                       WHERE id = %s""",
+                    (motivo_rejeicao, user["id"], credencial_id),
+                )
+
+                # Atualiza perfil profissional para rejeitado
+                cur.execute(
+                    """UPDATE perfis_profissionais
+                       SET status_verificacao = 'rejeitado'
+                       WHERE usuario_id = %s""",
+                    (cred["usuario_id"],),
+                )
+                conn.commit()
+
+        await _emit_log(
+            usuario_id=user["id"],
+            acao="credencial_rejeitada",
+            detalhe=f"Credencial #{credencial_id} rejeitada. Motivo: {motivo_rejeicao}",
+            ip_origem=_get_client_ip(request),
+            categoria="credencial",
+            ator_role="admin",
+            entidade="credencial",
+            entidade_id=credencial_id,
+        )
+        return RedirectResponse(url="/admin?message=Credencial+rejeitada+com+sucesso.", status_code=302)
+    except Exception as e:
+        return RedirectResponse(url=f"/admin?error=Erro+ao+rejeitar+credencial:+{e}", status_code=302)
 
 
 @app.get("/favorites", response_class=HTMLResponse)
@@ -1283,13 +2012,15 @@ async def get_documento_vistoria(request: Request, movimentacao_id: int):
 async def upload_credencial_profissional(
     request: Request,
     tipo: str = Form(...),
-    documento: UploadFile = File(...),
+    documento: UploadFile = File(None),
+    arquivo: UploadFile = File(None),
 ):
     """
     Upload de credencial de saúde (COREN, diploma, certidão de antecedentes).
     Validação obrigatória de magic bytes: arquivos maliciosos (ex: executáveis com extensão .pdf)
     são sumariamente rejeitados com HTTP 400 Bad Request.
     """
+    doc = documento or arquivo
     user = await _get_user_or_none(request)
     if not user:
         raise HTTPException(status_code=401, detail="Autenticação obrigatória.")
@@ -1307,16 +2038,16 @@ async def upload_credencial_profissional(
             detail=f"Tipo de credencial inválido. Válidos: {', '.join(sorted(tipos_validos))}",
         )
 
-    if not documento or not documento.filename:
+    if not doc or not doc.filename:
         raise HTTPException(status_code=400, detail="Nenhum arquivo enviado.")
 
-    file_bytes = await documento.read()
+    file_bytes = await doc.read()
 
     # Validação profunda: extensão, tamanho e magic bytes
     is_valid, msg_or_mime, ext = validate_file_upload(
         file_bytes=file_bytes,
-        filename=documento.filename,
-        content_type=documento.content_type,
+        filename=doc.filename,
+        content_type=doc.content_type,
         allowed_mime_types=ALLOWED_DOCUMENT_MIMES,
         max_bytes=MAX_DOCUMENT_BYTES,
     )
@@ -1368,6 +2099,12 @@ async def upload_credencial_profissional(
         ip_origem=_get_client_ip(request),
     )
 
+    if "text/html" in request.headers.get("accept", ""):
+        return RedirectResponse(
+            url="/painel/profissional?message=Credencial+enviada+para+análise!",
+            status_code=302,
+        )
+
     return {
         "success": True,
         "credencial_id": credencial_id,
@@ -1384,11 +2121,13 @@ async def upload_documento_paciente(
     paciente_id: int,
     tipo: str = Form("laudo_medico"),
     descricao: str = Form(""),
-    documento: UploadFile = File(...),
+    documento: UploadFile = File(None),
+    arquivo: UploadFile = File(None),
 ):
     """
     Upload de laudo médico ou prescrição de paciente vinculado ao familiar responsável.
     """
+    doc = documento or arquivo
     user = await _get_user_or_none(request)
     if not user:
         raise HTTPException(status_code=401, detail="Autenticação obrigatória.")
@@ -1413,15 +2152,15 @@ async def upload_documento_paciente(
             detail="Acesso negado: apenas o familiar responsável ou administradores podem anexar laudos.",
         )
 
-    if not documento or not documento.filename:
+    if not doc or not doc.filename:
         raise HTTPException(status_code=400, detail="Nenhum arquivo enviado.")
 
-    file_bytes = await documento.read()
+    file_bytes = await doc.read()
 
     is_valid, msg_or_mime, ext = validate_file_upload(
         file_bytes=file_bytes,
-        filename=documento.filename,
-        content_type=documento.content_type,
+        filename=doc.filename,
+        content_type=doc.content_type,
         allowed_mime_types=ALLOWED_DOCUMENT_MIMES,
         max_bytes=MAX_DOCUMENT_BYTES,
     )
@@ -1462,6 +2201,12 @@ async def upload_documento_paciente(
         detalhe=f"documento_id={doc_id}, paciente_id={paciente_id}, tipo={tipo}",
         ip_origem=_get_client_ip(request),
     )
+
+    if "text/html" in request.headers.get("accept", ""):
+        return RedirectResponse(
+            url="/painel/familia?message=Laudo+médico+anexado+com+sucesso!",
+            status_code=302,
+        )
 
     return {
         "success": True,

@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block title %}{{ equipamento.nome }} — Locação CuidaHome{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+
+    <div style="margin-bottom: 1.5rem;">
+        <a href="/equipamentos" style="color: var(--accent-primary); text-decoration: none; font-size: 0.9rem; display: inline-flex; align-items: center; gap: 0.4rem;">
+            <i class="fa-solid fa-arrow-left"></i> Voltar ao Catálogo de Equipamentos
+        </a>
+    </div>
+
+    {% if message %}
+    <div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> {{ message }}</div>
+    {% endif %}
+    {% if error %}
+    <div class="alert alert-danger"><i class="fa-solid fa-triangle-exclamation"></i> {{ error }}</div>
+    {% endif %}
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 2.5rem; align-items: start;">
+        
+        <!-- Mídia do Equipamento -->
+        <div class="card" style="overflow: hidden;">
+            <div style="height: 360px; background: var(--bg-secondary); display: flex; align-items: center; justify-content: center; font-size: 6rem; color: var(--accent-primary); position: relative;">
+                {% if equipamento.foto_principal_key %}
+                <img src="/storage/equipamentos/{{ equipamento.id }}/{{ equipamento.foto_principal_key }}" alt="{{ equipamento.nome }}" style="width: 100%; height: 100%; object-fit: cover;">
+                {% else %}
+                    {% if 'cama' in equipamento.nome|lower %}
+                    <i class="fa-solid fa-bed"></i>
+                    {% elif 'cadeira' in equipamento.nome|lower %}
+                    <i class="fa-solid fa-wheelchair"></i>
+                    {% elif 'andador' in equipamento.nome|lower %}
+                    <i class="fa-solid fa-person-walking"></i>
+                    {% elif 'oxig' in equipamento.nome|lower %}
+                    <i class="fa-solid fa-lungs"></i>
+                    {% else %}
+                    <i class="fa-solid fa-crutch"></i>
+                    {% endif %}
+                {% endif %}
+
+                <div style="position: absolute; top: 1rem; right: 1rem;">
+                    {% if unidades_disponiveis and unidades_disponiveis > 0 %}
+                    <span class="badge badge-in-stock"><i class="fa-solid fa-circle-check"></i> Em Estoque ({{ unidades_disponiveis }} disp.)</span>
+                    {% else %}
+                    <span class="badge badge-out-of-stock"><i class="fa-solid fa-circle-xmark"></i> Indisponível no momento</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div style="padding: 1.5rem; background: var(--bg-card); border-top: 1px solid var(--border-color);">
+                <div style="display: flex; gap: 1rem; align-items: center; color: var(--text-secondary); font-size: 0.85rem;">
+                    <div><i class="fa-solid fa-shield-halved" style="color: var(--accent-secondary);"></i> Higienização Hospitalar</div>
+                    <div><i class="fa-solid fa-truck-fast" style="color: var(--accent-primary);"></i> Entrega Domiciliar</div>
+                    <div><i class="fa-solid fa-wrench" style="color: var(--warning);"></i> Suporte Técnico</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detalhes e Formulário de Contratação -->
+        <div>
+            <div style="display: inline-block; font-size: 0.8rem; font-weight: 700; color: var(--accent-primary); text-transform: uppercase; margin-bottom: 0.5rem;">
+                {{ categoria.nome if categoria else 'Equipamento Hospitalar' }}
+            </div>
+            <h1 style="font-size: 2.2rem; font-weight: 800; color: var(--text-primary); margin-bottom: 1rem; line-height: 1.2;">
+                {{ equipamento.nome }}
+            </h1>
+
+            <!-- Bloco de Preços -->
+            <div class="card" style="padding: 1.5rem; margin-bottom: 2rem; background: var(--bg-secondary); border: 1px solid var(--border-color);">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                    <div>
+                        <div style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">Mensalidade Recorrente</div>
+                        <div style="font-size: 2rem; font-weight: 800; color: var(--accent-secondary);">
+                            R$ {{ "%.2f"|format((equipamento.preco_mensal_centavos or 0) / 100) }}
+                            <span style="font-size: 0.9rem; font-weight: 500; color: var(--text-muted);">/ mês</span>
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">Garantia / Caução Digital (Hold)</div>
+                        <div style="font-size: 1.3rem; font-weight: 700; color: var(--text-primary);">
+                            R$ {{ "%.2f"|format((equipamento.valor_caucao_centavos or 0) / 100) }}
+                        </div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">Pré-autorização liberada na devolução</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Descrição e Especificações -->
+            <div style="margin-bottom: 2rem;">
+                <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.8rem;">Descrição do Equipamento</h3>
+                <p style="color: var(--text-secondary); line-height: 1.6; font-size: 0.95rem;">
+                    {{ equipamento.descricao or 'Equipamento ortopédico de alto padrão destinado a proporcionar conforto, posicionamento anatômico e independência para pacientes em recuperação domiciliar.' }}
+                </p>
+            </div>
+
+            <!-- Formulário de Locação / Botão -->
+            {% if unidades_disponiveis and unidades_disponiveis > 0 %}
+                {% if user %}
+                <form action="/equipamentos/{{ equipamento.id }}/locar" method="POST" class="card" style="padding: 1.5rem; background: var(--bg-card); border: 1px solid var(--border-color);">
+                    <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1.2rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <i class="fa-solid fa-file-contract" style="color: var(--accent-primary);"></i> Solicitar Locação Imediata
+                    </h3>
+
+                    {% if pacientes %}
+                    <div class="form-group">
+                        <label class="form-label">Paciente Beneficiário</label>
+                        <select name="paciente_id" class="form-select">
+                            <option value="">Selecione o paciente cadastrado...</option>
+                            {% for pac in pacientes %}
+                            <option value="{{ pac.id }}">{{ pac.nome }} ({{ pac.cidade }}/{{ pac.uf }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+
+                    <div class="form-group">
+                        <label class="form-label">Endereço de Entrega Residencial *</label>
+                        <input type="text" name="endereco_entrega" required placeholder="Rua, número, complemento e bairro" class="form-input">
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label class="form-label">Cidade *</label>
+                            <input type="text" name="cidade" required placeholder="Ex: São Paulo" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">UF *</label>
+                            <input type="text" name="uf" required maxlength="2" placeholder="SP" class="form-input" style="text-transform: uppercase;">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Data Prevista para Recebimento *</label>
+                        <input type="date" name="data_entrega_prevista" required class="form-input">
+                    </div>
+
+                    <div style="margin: 1.2rem 0; padding: 0.8rem; background: var(--bg-secondary); border-radius: var(--radius-sm); font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">
+                        <label style="display: flex; gap: 0.6rem; cursor: pointer; align-items: flex-start;">
+                            <input type="checkbox" required style="margin-top: 0.2rem;">
+                            <span>Li e concordo com os termos de locação mensal. Compreendo que a caução de <strong>R$ {{ "%.2f"|format(equipamento.valor_caucao_centavos / 100) }}</strong> será retida temporariamente como autorização de segurança via Stripe e liberada após a vistoria física de devolução.</span>
+                        </label>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-full btn-lg">
+                        <i class="fa-solid fa-lock"></i> Prosseguir para o Pagamento Seguro
+                    </button>
+                </form>
+                {% else %}
+                <div class="card" style="padding: 1.8rem; text-align: center; background: var(--bg-secondary);">
+                    <h3 style="color: var(--text-primary); margin-bottom: 0.6rem;">Faça login para alugar</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.95rem;">
+                        Você precisa ter uma conta de familiar/cliente para solicitar este equipamento.
+                    </p>
+                    <div style="display: flex; gap: 1rem; justify-content: center;">
+                        <a href="/login" class="btn btn-primary">Entrar na Conta</a>
+                        <a href="/register" class="btn btn-secondary">Criar Cadastro</a>
+                    </div>
+                </div>
+                {% endif %}
+            {% else %}
+                <div class="alert alert-danger" style="padding: 1.5rem; text-align: center;">
+                    <i class="fa-solid fa-triangle-exclamation" style="font-size: 1.5rem; margin-bottom: 0.5rem; display: block;"></i>
+                    <strong>Este equipamento está esgotado no momento.</strong>
+                    <p style="font-size: 0.88rem; margin-top: 0.4rem;">Todas as unidades físicas estão atualmente locadas. Cadastre seu e-mail para ser notificado assim que uma unidade for devolvida.</p>
+                </div>
+            {% endif %}
+        </div>
+
+    </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}{{ profissional.nome }} — Perfil Profissional CuidaHome{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+
+    <div style="margin-bottom: 1.5rem;">
+        <a href="/profissionais" style="color: var(--accent-primary); text-decoration: none; font-size: 0.9rem; display: inline-flex; align-items: center; gap: 0.4rem;">
+            <i class="fa-solid fa-arrow-left"></i> Voltar ao Mural de Profissionais
+        </a>
+    </div>
+
+    {% if message %}
+    <div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> {{ message }}</div>
+    {% endif %}
+    {% if error %}
+    <div class="alert alert-danger"><i class="fa-solid fa-triangle-exclamation"></i> {{ error }}</div>
+    {% endif %}
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 2.5rem; align-items: start;">
+        
+        <!-- Perfil e Credenciais -->
+        <div class="card" style="padding: 2rem; background: var(--bg-card);">
+            <div style="display: flex; align-items: center; gap: 1.25rem; margin-bottom: 1.5rem;">
+                <div class="prof-avatar" style="width: 80px; height: 80px; font-size: 2rem;">
+                    {% if profissional.avatar_key %}
+                    <img src="/storage/avatars/{{ profissional.avatar_key }}" alt="{{ profissional.nome }}">
+                    {% else %}
+                    {{ profissional.nome[0]|upper }}
+                    {% endif %}
+                </div>
+                <div>
+                    <h1 style="font-size: 1.6rem; font-weight: 800; color: var(--text-primary); margin-bottom: 0.2rem;">
+                        {{ profissional.nome }}
+                    </h1>
+                    <div class="prof-category" style="font-size: 0.9rem;">
+                        {% if profissional.categoria == 'enfermeiro' %}
+                        <i class="fa-solid fa-user-doctor"></i> Enfermeiro(a)
+                        {% elif profissional.categoria == 'tecnico_enfermagem' %}
+                        <i class="fa-solid fa-stethoscope"></i> Técnico de Enfermagem
+                        {% else %}
+                        <i class="fa-solid fa-hand-holding-heart"></i> Cuidador(a) de Idosos
+                        {% endif %}
+                    </div>
+                    <div class="prof-rating" style="margin-top: 0.4rem;">
+                        <i class="fa-solid fa-star"></i>
+                        <strong>{{ "%.2f"|format(profissional.nota_media or 5.0) }}</strong>
+                        <span style="color: var(--text-muted);">({{ profissional.total_avaliacoes or 0 }} avaliações)</span>
+                    </div>
+                </div>
+            </div>
+
+            {% if profissional.registro_conselho %}
+            <div style="margin-bottom: 1.5rem; padding: 0.8rem; background: rgba(6, 182, 212, 0.08); border-radius: var(--radius-md); border: 1px solid rgba(6, 182, 212, 0.25);">
+                <div style="display: flex; align-items: center; gap: 0.6rem; color: var(--accent-primary); font-weight: 700; font-size: 0.9rem;">
+                    <i class="fa-solid fa-circle-check"></i> Registro Profissional Auditado
+                </div>
+                <div style="color: var(--text-primary); font-size: 0.9rem; margin-top: 0.3rem;">
+                    {{ profissional.registro_conselho }} — Conselho Regional de Enfermagem ({{ profissional.uf_conselho or 'SP' }})
+                </div>
+            </div>
+            {% endif %}
+
+            <div style="margin-bottom: 1.5rem;">
+                <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.6rem;">Sobre o Profissional</h3>
+                <p style="color: var(--text-secondary); line-height: 1.6; font-size: 0.92rem;">
+                    {{ profissional.apresentacao or 'Profissional capacitado, com formação em cuidados de saúde e experiência em assistência domiciliar individualizada.' }}
+                </p>
+            </div>
+
+            <div style="margin-bottom: 1.5rem;">
+                <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.6rem;">Região de Atendimento</h3>
+                <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-secondary); font-size: 0.9rem;">
+                    <i class="fa-solid fa-location-dot" style="color: var(--accent-primary);"></i>
+                    <span>{{ profissional.cidade }} - {{ profissional.uf }} (Raio aproximado de {{ profissional.raio_atendimento_km or 15 }} km)</span>
+                </div>
+            </div>
+
+            <!-- Tabela de Valores das Diárias -->
+            <div style="padding: 1.25rem; background: var(--bg-secondary); border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+                <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.8rem;">
+                    Tabela de Diárias
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;">
+                    <span style="color: var(--text-primary); font-size: 0.95rem;">Plantão Diurno/Noturno (12 horas)</span>
+                    <strong style="color: var(--accent-secondary); font-size: 1.15rem;">R$ {{ "%.2f"|format((profissional.valor_diaria_12h_centavos or 15000) / 100) }}</strong>
+                </div>
+                {% if profissional.valor_diaria_24h_centavos %}
+                <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 0.6rem; border-top: 1px solid var(--border-color);">
+                    <span style="color: var(--text-primary); font-size: 0.95rem;">Plantão Integral (24 horas)</span>
+                    <strong style="color: var(--accent-secondary); font-size: 1.15rem;">R$ {{ "%.2f"|format(profissional.valor_diaria_24h_centavos / 100) }}</strong>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Formulário de Solicitação de Plantão -->
+        <div>
+            {% if user %}
+            <form action="/plantoes/solicitar" method="POST" class="card" style="padding: 2rem; background: var(--bg-card); border: 1px solid var(--border-color);">
+                <input type="hidden" name="profissional_id" value="{{ profissional.usuario_id or profissional.id }}">
+                <input type="hidden" name="categoria_exigida" value="{{ profissional.categoria }}">
+
+                <h2 style="font-size: 1.35rem; font-weight: 800; color: var(--text-primary); margin-bottom: 1.2rem; display: flex; align-items: center; gap: 0.6rem;">
+                    <i class="fa-solid fa-calendar-check" style="color: var(--accent-primary);"></i> Solicitar Plantão Direto
+                </h2>
+
+                {% if pacientes %}
+                <div class="form-group">
+                    <label class="form-label">Paciente a ser atendido *</label>
+                    <select name="paciente_id" required class="form-select">
+                        <option value="">Selecione um paciente cadastrado...</option>
+                        {% for pac in pacientes %}
+                        <option value="{{ pac.id }}">{{ pac.nome }} ({{ pac.cidade }}/{{ pac.uf }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% else %}
+                <div class="alert alert-warning" style="font-size: 0.85rem; padding: 0.8rem 1rem;">
+                    <i class="fa-solid fa-circle-info"></i> Você ainda não tem pacientes cadastrados no seu painel.
+                    <a href="/painel/familia" style="color: var(--text-primary); font-weight: 700; text-decoration: underline; margin-left: 0.4rem;">Cadastrar paciente agora</a>
+                </div>
+                {% endif %}
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Início do Plantão *</label>
+                        <input type="datetime-local" name="inicio" required class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Término do Plantão *</label>
+                        <input type="datetime-local" name="fim" required class="form-input">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Endereço Residencial do Atendimento *</label>
+                    <input type="text" name="endereco_atendimento" required placeholder="Rua, número, complemento e bairro" class="form-input">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Cidade *</label>
+                        <input type="text" name="cidade" required value="{{ profissional.cidade }}" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">UF *</label>
+                        <input type="text" name="uf" required maxlength="2" value="{{ profissional.uf }}" class="form-input" style="text-transform: uppercase;">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Urgência do Atendimento</label>
+                    <select name="urgencia" class="form-select">
+                        <option value="agendado">Agendado (Programado)</option>
+                        <option value="emergencial">Emergencial (Início imediato)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Observações e Recomendações de Cuidado</label>
+                    <textarea name="observacoes" rows="3" placeholder="Informações relevantes sobre medicações, horários de alimentação, mobilidade ou cuidados especiais..." class="form-textarea"></textarea>
+                </div>
+
+                <div style="margin: 1.2rem 0; padding: 0.8rem; background: var(--bg-secondary); border-radius: var(--radius-sm); font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">
+                    <i class="fa-solid fa-lock" style="color: var(--accent-secondary);"></i> O valor é calculado automaticamente com base no período e na taxa da plataforma (12%). O pagamento é realizado com segurança via Stripe após o profissional aceitar a escala.
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-full btn-lg" {{ 'disabled' if not pacientes else '' }}>
+                    <i class="fa-solid fa-paper-plane"></i> Enviar Solicitação de Plantão
+                </button>
+            </form>
+            {% else %}
+            <div class="card" style="padding: 2.5rem 1.5rem; text-align: center; background: var(--bg-card);">
+                <i class="fa-solid fa-user-lock" style="font-size: 2.5rem; color: var(--accent-primary); margin-bottom: 1rem;"></i>
+                <h3 style="color: var(--text-primary); margin-bottom: 0.6rem;">Identifique-se para solicitar este plantão</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.95rem;">
+                    Famílias cadastradas podem contratar plantões diretamente com cuidadores e acompanhar o atendimento em tempo real.
+                </p>
+                <div style="display: flex; gap: 1rem; justify-content: center;">
+                    <a href="/login" class="btn btn-primary">Entrar</a>
+                    <a href="/register" class="btn btn-secondary">Cadastre-se</a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+    </div>
+
+</div>
+{% endblock %}

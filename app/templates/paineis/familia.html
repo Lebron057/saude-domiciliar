@@ -1,0 +1,422 @@
+{% extends "base.html" %}
+
+{% block title %}Painel da Família — CuidaHome{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+
+    <div class="dashboard-header">
+        <div class="dashboard-title">
+            <div style="display: inline-flex; align-items: center; gap: 0.4rem; color: var(--accent-secondary); font-size: 0.85rem; font-weight: 700; text-transform: uppercase;">
+                <i class="fa-solid fa-heart"></i> Espaço da Família
+            </div>
+            <h1>Olá, {{ user.nome }}!</h1>
+            <p>Gerencie seus pacientes assistidos, acompanhe escalas de plantão e contratos de equipamentos.</p>
+        </div>
+        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+            <button class="btn btn-secondary btn-sm" onclick="openModal('modalNovoPaciente')">
+                <i class="fa-solid fa-user-plus"></i> Novo Paciente
+            </button>
+            <a href="/profissionais" class="btn btn-primary btn-sm">
+                <i class="fa-solid fa-calendar-plus"></i> Contratar Plantão
+            </a>
+            <a href="/equipamentos" class="btn btn-outline btn-sm">
+                <i class="fa-solid fa-wheelchair"></i> Alugar Aparelho
+            </a>
+        </div>
+    </div>
+
+    {% if message %}
+    <div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> {{ message }}</div>
+    {% endif %}
+    {% if error %}
+    <div class="alert alert-danger"><i class="fa-solid fa-triangle-exclamation"></i> {{ error }}</div>
+    {% endif %}
+
+    <!-- Indicadores de Visão Geral -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon stat-icon-teal">
+                <i class="fa-solid fa-user-injured"></i>
+            </div>
+            <div class="stat-details">
+                <div class="stat-value">{{ pacientes|length }}</div>
+                <div class="stat-label">Pacientes Assistidos</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon-green">
+                <i class="fa-solid fa-calendar-check"></i>
+            </div>
+            <div class="stat-details">
+                <div class="stat-value">{{ plantoes|length }}</div>
+                <div class="stat-label">Plantões Solicitados</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon-amber">
+                <i class="fa-solid fa-truck-ramp-box"></i>
+            </div>
+            <div class="stat-details">
+                <div class="stat-value">{{ locacoes|length }}</div>
+                <div class="stat-label">Locações de Aparelhos</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navegação em Abas -->
+    <div class="tab-nav">
+        <button class="tab-btn active" onclick="switchTab('tabPacientes')">
+            <i class="fa-solid fa-hospital-user"></i> Meus Pacientes ({{ pacientes|length }})
+        </button>
+        <button class="tab-btn" onclick="switchTab('tabPlantoes')">
+            <i class="fa-solid fa-calendar-day"></i> Plantões e Escalas ({{ plantoes|length }})
+        </button>
+        <button class="tab-btn" onclick="switchTab('tabLocacoes')">
+            <i class="fa-solid fa-boxes-stacked"></i> Equipamentos Alugados ({{ locacoes|length }})
+        </button>
+    </div>
+
+    <!-- Aba 1: Pacientes -->
+    <div id="tabPacientes" class="tab-pane active">
+        {% if pacientes %}
+        <div class="grid-cards">
+            {% for pac in pacientes %}
+            <div class="card" style="padding: 1.5rem; display: flex; flex-direction: column; justify-content: space-between;">
+                <div>
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.8rem;">
+                        <h3 style="font-size: 1.2rem; font-weight: 700; color: var(--text-primary);">{{ pac.nome }}</h3>
+                        <span class="badge badge-family">{{ pac.mobilidade|replace('_', ' ')|title }}</span>
+                    </div>
+                    <div style="font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 0.8rem;">
+                        <i class="fa-solid fa-location-dot" style="color: var(--accent-primary);"></i> {{ pac.cidade }} - {{ pac.uf }}
+                    </div>
+                    {% if pac.condicao_resumo %}
+                    <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 1rem;">
+                        <strong>Condição clínica:</strong> {{ pac.condicao_resumo }}
+                    </p>
+                    {% endif %}
+                    {% if pac.alergias_restricoes %}
+                    <div style="font-size: 0.8rem; color: #f87171; background: rgba(239, 68, 68, 0.1); padding: 0.5rem 0.8rem; border-radius: var(--radius-sm); margin-bottom: 1rem;">
+                        <i class="fa-solid fa-triangle-exclamation"></i> <strong>Alergias:</strong> {{ pac.alergias_restricoes }}
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div style="padding-top: 1rem; border-top: 1px solid var(--border-color); display: flex; gap: 0.5rem; justify-content: space-between;">
+                    <button class="btn btn-secondary btn-sm" onclick="openUploadLaudoModal('{{ pac.id }}', '{{ pac.nome }}')">
+                        <i class="fa-solid fa-file-medical"></i> Enviar Laudo (PDF)
+                    </button>
+                    <a href="/profissionais?paciente_id={{ pac.id }}" class="btn btn-primary btn-sm">
+                        <i class="fa-solid fa-calendar-plus"></i> Plantão
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="card" style="padding: 3rem 1.5rem; text-align: center;">
+            <i class="fa-solid fa-user-plus" style="font-size: 2.5rem; color: var(--text-muted); margin-bottom: 1rem;"></i>
+            <h3 style="color: var(--text-primary); margin-bottom: 0.5rem;">Nenhum paciente cadastrado</h3>
+            <p style="color: var(--text-secondary); margin-bottom: 1.5rem; max-width: 480px; margin-left: auto; margin-right: auto;">
+                Cadastre o familiar dependente (idoso, acamado ou convalescente) para anexar laudos médicos e contratar cuidadores validados.
+            </p>
+            <button class="btn btn-primary" onclick="openModal('modalNovoPaciente')">
+                <i class="fa-solid fa-plus"></i> Cadastrar Primeiro Paciente
+            </button>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Aba 2: Plantões e Histórico -->
+    <div id="tabPlantoes" class="tab-pane">
+        {% if plantoes %}
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Paciente</th>
+                        <th>Profissional</th>
+                        <th>Período</th>
+                        <th>Valor Total</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pl in plantoes %}
+                    <tr>
+                        <td>#{{ pl.id }}</td>
+                        <td><strong>{{ pl.paciente_nome or 'Paciente #' ~ pl.paciente_id }}</strong></td>
+                        <td>{{ pl.profissional_nome or 'Aguardando atribuição' }}</td>
+                        <td>
+                            <div style="font-size: 0.85rem;">{{ pl.inicio }}</div>
+                            <div style="font-size: 0.78rem; color: var(--text-muted);">até {{ pl.fim }}</div>
+                        </td>
+                        <td>
+                            <strong>R$ {{ "%.2f"|format(pl.valor_diaria_centavos / 100) }}</strong>
+                        </td>
+                        <td>
+                            {% if pl.status == 'confirmado' %}
+                            <span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> Confirmado</span>
+                            {% elif pl.status == 'em_andamento' %}
+                            <span class="badge badge-info"><i class="fa-solid fa-spinner fa-spin"></i> Em Atendimento</span>
+                            {% elif pl.status == 'aguardando_pagamento' %}
+                            <span class="badge badge-warning"><i class="fa-solid fa-credit-card"></i> Pgto Pendente</span>
+                            {% elif pl.status == 'concluido' %}
+                            <span class="badge badge-success"><i class="fa-solid fa-flag-checkered"></i> Concluído</span>
+                            {% elif pl.status == 'cancelado' %}
+                            <span class="badge badge-danger">Cancelado</span>
+                            {% else %}
+                            <span class="badge badge-warning">{{ pl.status|title }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if pl.status == 'aguardando_pagamento' %}
+                            <form action="/plantoes/{{ pl.id }}/pagar" method="POST" style="display:inline;">
+                                <button type="submit" class="btn btn-primary btn-sm"><i class="fa-brands fa-stripe"></i> Pagar</button>
+                            </form>
+                            {% elif pl.status == 'concluido' and not pl.ja_avaliado %}
+                            <button class="btn btn-secondary btn-sm" onclick="openAvaliacaoModal('{{ pl.id }}', '{{ pl.profissional_nome }}')">
+                                <i class="fa-solid fa-star" style="color: #fbbf24;"></i> Avaliar
+                            </button>
+                            {% else %}
+                            <span style="color: var(--text-muted); font-size: 0.85rem;">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="card" style="padding: 3rem 1.5rem; text-align: center;">
+            <i class="fa-solid fa-calendar-xmark" style="font-size: 2.5rem; color: var(--text-muted); margin-bottom: 1rem;"></i>
+            <h3 style="color: var(--text-primary); margin-bottom: 0.5rem;">Nenhum plantão contratado ainda</h3>
+            <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Selecione um profissional verificado em nossa rede para agendar uma escala.</p>
+            <a href="/profissionais" class="btn btn-primary">Ver Mural de Cuidadores</a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Aba 3: Locações de Aparelhos -->
+    <div id="tabLocacoes" class="tab-pane">
+        {% if locacoes %}
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Equipamento</th>
+                        <th>Endereço de Entrega</th>
+                        <th>Mensalidade</th>
+                        <th>Caução Retida</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for loc in locacoes %}
+                    <tr>
+                        <td>#{{ loc.id }}</td>
+                        <td>
+                            <strong>{{ loc.equipamento_nome }}</strong>
+                            {% if loc.numero_patrimonio %}
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">Patrimônio: {{ loc.numero_patrimonio }}</div>
+                            {% endif %}
+                        </td>
+                        <td>{{ loc.endereco_entrega }}, {{ loc.cidade }}/{{ loc.uf }}</td>
+                        <td>R$ {{ "%.2f"|format((loc.preco_mensal_centavos or 0) / 100) }}/mês</td>
+                        <td>R$ {{ "%.2f"|format((loc.valor_caucao_centavos or 0) / 100) }}</td>
+                        <td>
+                            {% if loc.status in ['entregue', 'despachada'] %}
+                            <span class="badge badge-success"><i class="fa-solid fa-box"></i> {{ loc.status|title }}</span>
+                            {% elif loc.status == 'devolucao_solicitada' %}
+                            <span class="badge badge-warning"><i class="fa-solid fa-clock-rotate-left"></i> Devolução Agendada</span>
+                            {% elif loc.status == 'encerrada' %}
+                            <span class="badge badge-info">Encerrada</span>
+                            {% else %}
+                            <span class="badge badge-warning">{{ loc.status|title }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if loc.status in ['entregue', 'despachada'] %}
+                            <form action="/locacoes/{{ loc.id }}/devolver" method="POST" style="display:inline;">
+                                <button type="submit" class="btn btn-outline btn-sm" onclick="return confirm('Deseja solicitar a devolução e coleta deste equipamento? A caução será liberada após a vistoria física.')">
+                                    <i class="fa-solid fa-rotate-left"></i> Devolver
+                                </button>
+                            </form>
+                            {% else %}
+                            <span style="color: var(--text-muted); font-size: 0.85rem;">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="card" style="padding: 3rem 1.5rem; text-align: center;">
+            <i class="fa-solid fa-wheelchair" style="font-size: 2.5rem; color: var(--text-muted); margin-bottom: 1rem;"></i>
+            <h3 style="color: var(--text-primary); margin-bottom: 0.5rem;">Nenhum equipamento alugado no momento</h3>
+            <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Alugue camas hospitalares, cadeiras de rodas e andadores com entrega rápida no domicílio.</p>
+            <a href="/equipamentos" class="btn btn-primary">Explorar Catálogo de Equipamentos</a>
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+
+<!-- Modal: Cadastro de Paciente -->
+<div id="modalNovoPaciente" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary);">Cadastrar Novo Paciente</h3>
+            <button class="modal-close" onclick="closeModal('modalNovoPaciente')">&times;</button>
+        </div>
+        <form action="/pacientes/cadastrar" method="POST">
+            <div class="form-group">
+                <label class="form-label">Nome Completo do Paciente *</label>
+                <input type="text" name="nome" required class="form-input" placeholder="Ex: Dona Helena Santos">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Data de Nascimento</label>
+                <input type="date" name="data_nascimento" class="form-input">
+            </div>
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label class="form-label">Cidade *</label>
+                    <input type="text" name="cidade" required class="form-input" placeholder="Ex: São Paulo">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">UF *</label>
+                    <input type="text" name="uf" required maxlength="2" class="form-input" placeholder="SP" style="text-transform: uppercase;">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Nível de Mobilidade</label>
+                <select name="mobilidade" class="form-select">
+                    <option value="independente">Independente</option>
+                    <option value="mobilidade_reduzida" selected>Mobilidade Reduzida</option>
+                    <option value="cadeirante">Cadeirante</option>
+                    <option value="acamado">Acamado</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Resumo do Diagnóstico / Condição Clínica</label>
+                <textarea name="condicao_resumo" rows="2" class="form-textarea" placeholder="Ex: Pós-AVC, lúcido, necessidade de auxílio para banho e medicação..."></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Alergias ou Restrições Medicamentosas</label>
+                <input type="text" name="alergias_restricoes" class="form-input" placeholder="Ex: Alergia a Dipirona e Sulfas">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Contato Telefônico de Emergência</label>
+                <input type="text" name="contato_emergencia" class="form-input" placeholder="(11) 98765-4321">
+            </div>
+            <button type="submit" class="btn btn-primary btn-full" style="margin-top: 1rem;">
+                <i class="fa-solid fa-save"></i> Salvar Paciente
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Upload Seguro de Laudo Médico -->
+<div id="modalUploadLaudo" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary);">Anexar Laudo / Receita Médica</h3>
+            <button class="modal-close" onclick="closeModal('modalUploadLaudo')">&times;</button>
+        </div>
+        <form id="formUploadLaudo" action="" method="POST" enctype="multipart/form-data">
+            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+                Paciente: <strong id="uploadLaudoPacienteNome" style="color: var(--text-primary);"></strong>
+            </p>
+            <div class="form-group">
+                <label class="form-label">Tipo de Documento</label>
+                <select name="tipo" class="form-select">
+                    <option value="laudo_medico">Laudo Médico (PDF)</option>
+                    <option value="receita">Receita / Prescrição de Medicamentos</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Descrição Resumida</label>
+                <input type="text" name="descricao" class="form-input" placeholder="Ex: Relatório cardiológico Dr. Carlos">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Arquivo (PDF, JPG ou PNG - até 10 MB) *</label>
+                <input type="file" name="documento" required accept=".pdf,image/jpeg,image/png" class="form-input">
+                <div class="form-help">Armazenamento criptografado em conformidade estrita com a LGPD.</div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-full" style="margin-top: 1rem;">
+                <i class="fa-solid fa-cloud-arrow-up"></i> Enviar Documento Seguro
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Avaliação do Cuidador -->
+<div id="modalAvaliacao" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary);">Avaliar Plantão Concluído</h3>
+            <button class="modal-close" onclick="closeModal('modalAvaliacao')">&times;</button>
+        </div>
+        <form id="formAvaliacao" action="" method="POST">
+            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+                Profissional: <strong id="avaliacaoProfissionalNome" style="color: var(--text-primary);"></strong>
+            </p>
+            <div class="form-group">
+                <label class="form-label">Nota de Atendimento (1 a 5 estrelas) *</label>
+                <select name="nota" required class="form-select">
+                    <option value="5">⭐⭐⭐⭐⭐ 5 Estrelas (Excelente)</option>
+                    <option value="4">⭐⭐⭐⭐ 4 Estrelas (Muito Bom)</option>
+                    <option value="3">⭐⭐⭐ 3 Estrelas (Regular)</option>
+                    <option value="2">⭐⭐ 2 Estrelas (Ruim)</option>
+                    <option value="1">⭐ 1 Estrela (Insatisfatório)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Comentário Público sobre o Atendimento</label>
+                <textarea name="comentario" rows="3" class="form-textarea" placeholder="Conte como foi a pontualidade, higiene e cuidado humanizado com o paciente..."></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary btn-full" style="margin-top: 1rem;">
+                <i class="fa-solid fa-check"></i> Enviar Avaliação
+            </button>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function switchTab(tabId) {
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+    document.getElementById(tabId).classList.add('active');
+}
+
+function openModal(modalId) {
+    document.getElementById(modalId).classList.add('open');
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).classList.remove('open');
+}
+
+function openUploadLaudoModal(pacienteId, pacienteNome) {
+    document.getElementById('uploadLaudoPacienteNome').innerText = pacienteNome;
+    document.getElementById('formUploadLaudo').action = '/pacientes/' + pacienteId + '/documentos/upload';
+    openModal('modalUploadLaudo');
+}
+
+function openAvaliacaoModal(plantaoId, profNome) {
+    document.getElementById('avaliacaoProfissionalNome').innerText = profNome;
+    document.getElementById('formAvaliacao').action = '/plantoes/' + plantaoId + '/avaliar';
+    openModal('modalAvaliacao');
+}
+</script>
+{% endblock %}

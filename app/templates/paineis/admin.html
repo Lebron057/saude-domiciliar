@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block title %}Painel Administrativo & Moderação — CuidaHome{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+
+    <div class="dashboard-header">
+        <div class="dashboard-title">
+            <div style="display: inline-flex; align-items: center; gap: 0.4rem; color: #f87171; font-size: 0.85rem; font-weight: 700; text-transform: uppercase;">
+                <i class="fa-solid fa-shield-halved"></i> Governança & Auditoria
+            </div>
+            <h1>Painel Administrativo CuidaHome</h1>
+            <p>Métricas globais da plataforma, moderação de credenciais de saúde e controle de conformidade.</p>
+        </div>
+        <div style="display: flex; gap: 0.75rem;">
+            <a href="/admin/logs" class="btn btn-secondary btn-sm">
+                <i class="fa-solid fa-list-check"></i> Logs de Auditoria
+            </a>
+            <a href="/" class="btn btn-outline btn-sm">
+                <i class="fa-solid fa-house"></i> Ir para Início
+            </a>
+        </div>
+    </div>
+
+    {% if message %}
+    <div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> {{ message }}</div>
+    {% endif %}
+    {% if error %}
+    <div class="alert alert-danger"><i class="fa-solid fa-triangle-exclamation"></i> {{ error }}</div>
+    {% endif %}
+
+    <!-- Indicadores Executivos -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon stat-icon-amber">
+                <i class="fa-solid fa-id-card-clip"></i>
+            </div>
+            <div class="stat-details">
+                <div class="stat-value">{{ credenciais_pendentes|length }}</div>
+                <div class="stat-label">Credenciais em Moderação</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon-teal">
+                <i class="fa-solid fa-users"></i>
+            </div>
+            <div class="stat-details">
+                <div class="stat-value">{{ total_usuarios or 0 }}</div>
+                <div class="stat-label">Usuários Cadastrados</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon-green">
+                <i class="fa-solid fa-sack-dollar"></i>
+            </div>
+            <div class="stat-details">
+                <div class="stat-value">R$ {{ "%.2f"|format((total_gmv_centavos or 0) / 100) }}</div>
+                <div class="stat-label">Volume Transacionado (GMV)</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon-blue">
+                <i class="fa-solid fa-boxes-packing"></i>
+            </div>
+            <div class="stat-details">
+                <div class="stat-value">{{ total_locacoes_ativas or 0 }}</div>
+                <div class="stat-label">Locações Ativas</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fila de Moderação de Credenciais de Saúde -->
+    <div style="margin-bottom: 3rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+            <div>
+                <h2 style="font-size: 1.4rem; font-weight: 800; color: var(--text-primary);">Fila de Validação de Credenciais</h2>
+                <p style="color: var(--text-muted); font-size: 0.9rem;">Documentos de profissionais aguardando checagem antes de liberação para plantões</p>
+            </div>
+            <span class="badge badge-warning">{{ credenciais_pendentes|length }} pendentes</span>
+        </div>
+
+        {% if credenciais_pendentes %}
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Profissional</th>
+                        <th>Tipo</th>
+                        <th>Tamanho</th>
+                        <th>Enviado em</th>
+                        <th>Visualizar Documento</th>
+                        <th>Ação de Auditoria</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cr in credenciais_pendentes %}
+                    <tr>
+                        <td>#{{ cr.id }}</td>
+                        <td>
+                            <strong>{{ cr.usuario_nome }}</strong>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">{{ cr.usuario_email }}</div>
+                        </td>
+                        <td><span class="badge badge-prof">{{ cr.tipo|upper }}</span></td>
+                        <td>{{ "%.1f"|format(cr.tamanho_bytes / 1024) }} KB</td>
+                        <td>{{ cr.criado_em }}</td>
+                        <td>
+                            <a href="/documentos/credenciais/{{ cr.id }}" target="_blank" class="btn btn-outline btn-sm">
+                                <i class="fa-solid fa-file-pdf"></i> Abrir Arquivo
+                            </a>
+                        </td>
+                        <td>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <form action="/admin/credenciais/{{ cr.id }}/aprovar" method="POST" style="display:inline;">
+                                    <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Confirmar aprovação das credenciais de {{ cr.usuario_nome }}? O profissional ficará ativo imediatamente no mural.')">
+                                        <i class="fa-solid fa-check"></i> Aprovar
+                                    </button>
+                                </form>
+                                <button class="btn btn-danger btn-sm" onclick="openRejeicaoModal('{{ cr.id }}', '{{ cr.usuario_nome }}')">
+                                    <i class="fa-solid fa-xmark"></i> Rejeitar
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="card" style="padding: 3rem 1.5rem; text-align: center;">
+            <i class="fa-solid fa-shield-heart" style="font-size: 2.5rem; color: var(--accent-secondary); margin-bottom: 1rem;"></i>
+            <h3 style="color: var(--text-primary); margin-bottom: 0.5rem;">Nenhuma credencial pendente de análise</h3>
+            <p style="color: var(--text-secondary);">Todos os documentos de cuidadores e enfermeiros foram auditados com sucesso.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Seção de Ações Rápidas do Administrador -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem;">
+        <div class="card" style="padding: 1.5rem;">
+            <div style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fa-solid fa-timeline" style="color: var(--accent-primary);"></i> Auditoria & Redis Streams
+            </div>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5; margin-bottom: 1.2rem;">
+                Inspecione o fluxo de eventos em tempo real (`evt:plantao`, `evt:locacao`, `evt:credencial`, `evt:pagamento`) e timeline cronológica de entidades.
+            </p>
+            <a href="/admin/logs" class="btn btn-secondary btn-sm">Acessar Console de Logs</a>
+        </div>
+
+        <div class="card" style="padding: 1.5rem;">
+            <div style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fa-brands fa-stripe" style="color: var(--info);"></i> Faturamento Stripe
+            </div>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5; margin-bottom: 1.2rem;">
+                Verifique o status das assinaturas recorrentes dos equipamentos e cauções autorizadas/capturadas no dashboard oficial de teste.
+            </p>
+            <a href="https://dashboard.stripe.com/test/payments" target="_blank" class="btn btn-secondary btn-sm">Abrir Stripe Dashboard</a>
+        </div>
+    </div>
+
+</div>
+
+<!-- Modal: Rejeição de Credencial com Justificativa -->
+<div id="modalRejeicao" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--danger);">Rejeitar Credencial Profissional</h3>
+            <button class="modal-close" onclick="closeModal('modalRejeicao')">&times;</button>
+        </div>
+        <form id="formRejeicao" action="" method="POST">
+            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+                Profissional: <strong id="rejeicaoProfissionalNome" style="color: var(--text-primary);"></strong>
+            </p>
+            <div class="form-group">
+                <label class="form-label">Motivo da Rejeição (Visível para o profissional) *</label>
+                <textarea name="motivo_rejeicao" required rows="3" class="form-textarea" placeholder="Ex: Registro no COREN consta com foto ilegível / Certidão de antecedentes vencida..."></textarea>
+            </div>
+            <button type="submit" class="btn btn-danger btn-full" style="margin-top: 1rem;">
+                <i class="fa-solid fa-ban"></i> Confirmar Rejeição
+            </button>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openModal(modalId) {
+    document.getElementById(modalId).classList.add('open');
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).classList.remove('open');
+}
+
+function openRejeicaoModal(credId, profNome) {
+    document.getElementById('rejeicaoProfissionalNome').innerText = profNome;
+    document.getElementById('formRejeicao').action = '/admin/credenciais/' + credId + '/rejeitar';
+    openModal('modalRejeicao');
+}
+</script>
+{% endblock %}

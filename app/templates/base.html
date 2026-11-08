@@ -18,11 +18,21 @@
             <a href="/" class="{{ 'active' if active_page == 'home' else '' }}"><i class="fa-solid fa-house"></i> Início</a>
             <a href="/equipamentos" class="{{ 'active' if active_page == 'equipamentos' else '' }}"><i class="fa-solid fa-wheelchair"></i> Equipamentos</a>
             <a href="/profissionais" class="{{ 'active' if active_page == 'profissionais' else '' }}"><i class="fa-solid fa-user-nurse"></i> Plantões</a>
-            {% if user and user.role == 'admin' %}
-            <a href="/admin/logs" class="{{ 'active' if active_page == 'admin_logs' else '' }}"><i class="fa-solid fa-shield-halved"></i> Auditoria</a>
+
+            {% if user %}
+                {% if user.role == 'admin' %}
+                    <a href="/admin" class="{{ 'active' if active_page == 'admin_painel' else '' }}"><i class="fa-solid fa-gauge-high"></i> Painel Admin</a>
+                    <a href="/admin/logs" class="{{ 'active' if active_page == 'admin_logs' else '' }}"><i class="fa-solid fa-shield-halved"></i> Auditoria</a>
+                {% elif user.role == 'profissional_saude' %}
+                    <a href="/painel/profissional" class="{{ 'active' if active_page == 'painel_profissional' else '' }}"><i class="fa-solid fa-calendar-check"></i> Minha Escala</a>
+                {% elif user.role == 'fornecedor_equipamento' %}
+                    <a href="/painel/fornecedor" class="{{ 'active' if active_page == 'painel_fornecedor' else '' }}"><i class="fa-solid fa-boxes-stacked"></i> Minha Frota</a>
+                {% else %}
+                    <a href="/painel/familia" class="{{ 'active' if active_page == 'painel_familia' else '' }}"><i class="fa-solid fa-heart"></i> Meu Painel</a>
+                {% endif %}
             {% endif %}
         </div>
-        <div style="display: flex; align-items: center; gap: 1rem;">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
             {% if user %}
             <a href="/profile/{{ user.id }}" class="navbar-user" style="text-decoration: none;">
                 <div class="user-icon">{{ user.nome[0]|upper }}</div>
@@ -37,7 +47,7 @@
                 <span class="badge badge-family">Família</span>
                 {% endif %}
             </a>
-            <a href="/logout" class="btn btn-ghost btn-sm">Sair</a>
+            <a href="/logout" class="btn btn-ghost btn-sm" title="Encerrar sessão"><i class="fa-solid fa-right-from-bracket"></i> Sair</a>
             {% else %}
             <a href="/login" class="btn btn-ghost btn-sm">Entrar</a>
             <a href="/register" class="btn btn-primary btn-sm">Cadastre-se</a>
@@ -49,9 +59,23 @@
         {% block content %}{% endblock %}
     </main>
 
-    <footer style="margin-top: 4rem; padding: 2rem 1rem; text-align: center; border-top: 1px solid var(--border-color, #27272a); color: #71717a; font-size: 0.85rem;">
-        <p><strong>CuidaHome</strong> — Plataforma de Saúde & Atendimento Domiciliar</p>
-        <p style="margin-top: 0.4rem;">Disciplina: <em>Introdução à Computação em Nuvem (ISW055)</em> — FATEC • Prof. Allan Siriani (<a href="https://github.com/siriani" target="_blank" style="color: #06b6d4; text-decoration: none;">@siriani</a>)</p>
+    <footer style="margin-top: 4rem; padding: 2.5rem 1rem 2rem 1rem; text-align: center; border-top: 1px solid var(--border-color); color: var(--text-muted); font-size: 0.85rem; background: var(--bg-secondary);">
+        <div style="max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 0.8rem;">
+            <p><strong style="color: var(--text-primary); font-size: 0.95rem;">CuidaHome</strong> — Plataforma Integrada de Saúde & Atendimento Domiciliar</p>
+            <p style="color: var(--text-secondary); max-width: 700px; margin: 0 auto; font-size: 0.8rem; line-height: 1.5;">
+                Intermediação segura de plantões de cuidadores e enfermagem em conformidade com o COREN e locação ágil de equipamentos ortopédicos com caução digital segura.
+            </p>
+            <div style="margin-top: 0.5rem; display: flex; justify-content: center; gap: 1.5rem; flex-wrap: wrap; font-size: 0.8rem;">
+                <a href="/termos" style="color: var(--text-muted); text-decoration: none;">Termos de Uso</a>
+                <a href="/privacidade" style="color: var(--text-muted); text-decoration: none;">Privacidade & LGPD</a>
+                <a href="/ajuda" style="color: var(--text-muted); text-decoration: none;">Central de Suporte</a>
+            </div>
+            <p style="margin-top: 1rem; font-size: 0.78rem;">
+                Disciplina: <em>Introdução à Computação em Nuvem (ISW055)</em> — FATEC • Prof. Allan Siriani (<a href="https://github.com/siriani" target="_blank" style="color: var(--accent-primary); text-decoration: none;">@siriani</a>)
+            </p>
+        </div>
     </footer>
+
+    {% block scripts %}{% endblock %}
 </body>
 </html>

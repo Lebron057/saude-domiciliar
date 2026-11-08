@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}Catálogo de Equipamentos Ortopédicos & Hospitalares — CuidaHome{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+
+    <div style="margin-bottom: 2.5rem;">
+        <div style="display: inline-flex; align-items: center; gap: 0.5rem; color: var(--accent-primary); font-size: 0.85rem; font-weight: 700; text-transform: uppercase; margin-bottom: 0.5rem;">
+            <i class="fa-solid fa-truck-medical"></i> Assistência Domiciliar
+        </div>
+        <h1 style="font-size: 2.2rem; font-weight: 800; color: var(--text-primary); margin-bottom: 0.5rem;">
+            Equipamentos e Aparelhos Hospitalares
+        </h1>
+        <p style="color: var(--text-secondary); max-width: 750px; font-size: 1rem;">
+            Locação mensal recorrente de camas elétricas, cadeiras de rodas e acessórios ortopédicos higienizados, com entrega ágil e caução digital pré-autorizada no cartão de crédito via Stripe.
+        </p>
+    </div>
+
+    <!-- Barra de Filtros e Categorias -->
+    <div class="filter-bar">
+        <div class="filter-pills">
+            <a href="/equipamentos" class="filter-pill {{ 'active' if not selected_categoria else '' }}">
+                <i class="fa-solid fa-layer-group"></i> Todos
+            </a>
+            {% for cat in categorias %}
+            <a href="/equipamentos?categoria={{ cat.slug }}" class="filter-pill {{ 'active' if selected_categoria == cat.slug else '' }}">
+                {% if cat.icone %}
+                <i class="{{ cat.icone }}"></i>
+                {% endif %}
+                {{ cat.nome }}
+            </a>
+            {% endfor %}
+        </div>
+
+        <form action="/equipamentos" method="GET" style="display: flex; gap: 0.5rem; flex-grow: 1; max-width: 380px;">
+            {% if selected_categoria %}
+            <input type="hidden" name="categoria" value="{{ selected_categoria }}">
+            {% endif %}
+            <input type="text" name="busca" value="{{ busca or '' }}" placeholder="Buscar equipamento..." class="form-input" style="padding: 0.45rem 0.9rem; font-size: 0.88rem;">
+            <button type="submit" class="btn btn-secondary btn-sm"><i class="fa-solid fa-magnifying-glass"></i></button>
+        </form>
+    </div>
+
+    <!-- Grade de Equipamentos -->
+    <div class="grid-cards">
+        {% if equipamentos %}
+            {% for eq in equipamentos %}
+            <div class="card equipment-card">
+                <div class="equipment-media">
+                    {% if eq.foto_principal_key %}
+                    <img src="/storage/equipamentos/{{ eq.id }}/{{ eq.foto_principal_key }}" alt="{{ eq.nome }}">
+                    {% else %}
+                        {% if 'cama' in eq.nome|lower %}
+                        <i class="fa-solid fa-bed"></i>
+                        {% elif 'cadeira' in eq.nome|lower %}
+                        <i class="fa-solid fa-wheelchair"></i>
+                        {% elif 'andador' in eq.nome|lower %}
+                        <i class="fa-solid fa-person-walking"></i>
+                        {% elif 'oxig' in eq.nome|lower %}
+                        <i class="fa-solid fa-lungs"></i>
+                        {% else %}
+                        <i class="fa-solid fa-crutch"></i>
+                        {% endif %}
+                    {% endif %}
+                    
+                    <div class="equipment-stock-badge">
+                        {% if eq.unidades_disponiveis and eq.unidades_disponiveis > 0 %}
+                        <span class="badge badge-in-stock"><i class="fa-solid fa-circle-check"></i> Em Estoque ({{ eq.unidades_disponiveis }})</span>
+                        {% else %}
+                        <span class="badge badge-out-of-stock"><i class="fa-solid fa-circle-xmark"></i> Indisponível no momento</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="equipment-content">
+                    <div>
+                        <div class="equipment-category">{{ eq.categoria_nome or 'Equipamento Hospitalar' }}</div>
+                        <h3 class="equipment-title">{{ eq.nome }}</h3>
+                        <p class="equipment-desc">{{ eq.descricao or 'Equipamento higienizado e certificado para uso domiciliar imediato com suporte e montagem.' }}</p>
+                    </div>
+
+                    <div class="equipment-footer">
+                        <div class="equipment-pricing">
+                            <span class="rent-price">R$ {{ "%.2f"|format((eq.preco_mensal_centavos or 0) / 100) }} <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">/mês</span></span>
+                            <span class="deposit-info">Caução: R$ {{ "%.2f"|format((eq.valor_caucao_centavos or 0) / 100) }}</span>
+                        </div>
+                        <a href="/equipamentos/{{ eq.id }}" class="btn btn-primary btn-sm {{ 'disabled' if not eq.unidades_disponiveis or eq.unidades_disponiveis <= 0 else '' }}">
+                            {% if eq.unidades_disponiveis and eq.unidades_disponiveis > 0 %}
+                            Alugar
+                            {% else %}
+                            Esgotado
+                            {% endif %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div style="grid-column: 1 / -1; text-align: center; padding: 4rem 1rem; background: var(--bg-card); border-radius: var(--radius-lg); border: 1px solid var(--border-color);">
+                <i class="fa-solid fa-box-open" style="font-size: 3rem; color: var(--text-muted); margin-bottom: 1rem;"></i>
+                <h3 style="color: var(--text-primary); margin-bottom: 0.5rem;">Nenhum equipamento encontrado</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Tente ajustar seus termos de busca ou filtros de categoria.</p>
+                <a href="/equipamentos" class="btn btn-secondary btn-sm">Limpar Filtros</a>
+            </div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}
