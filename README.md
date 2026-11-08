@@ -5,7 +5,8 @@
 > **Aluno:** Iago Amorim Lebron de Lima (RA: 2591612513019)  
 > **Repositório de Origem (Evidência P1):** [github.com/Lebron057/tom-hanks-avestruz](https://github.com/Lebron057/tom-hanks-avestruz)  
 > **Repositório Atual (SaaS / Atividade 9):** [github.com/Lebron057/saude-domiciliar](https://github.com/Lebron057/saude-domiciliar)  
-> **Subdomínio Público (Portainer):** [https://iago-lima-isw055.lapps.studio](https://iago-lima-isw055.lapps.studio) (Porta `8210`)
+> **Subdomínio Público (Portainer):** [https://iago-lima-isw055.lapps.studio](https://iago-lima-isw055.lapps.studio) (Porta `8210`)  
+> **Relatório Final da Avaliação P2 (PDF Oficial):** [docs/P2_ISW055_Iago_Lima.pdf](docs/P2_ISW055_Iago_Lima.pdf)
 
 ---
 
@@ -183,6 +184,7 @@ Acesse no navegador:
 
 ## 12. Documentação Complementar e Backlog
 
+* [Relatório Consolidado P2 — Arquitetura e Atividades (PDF Oficial)](docs/P2_ISW055_Iago_Lima.pdf)
 * [Arquitetura Detalhada do Sistema](docs/ARQUITETURA_SAUDE_DOMICILIAR.md)
 * [Runbook de Deploy no Portainer](docs/RUNBOOK_DEPLOY.md)
 * [Backlog de Issues do GitHub (12 Issues Detalhadas)](docs/backlog/ISSUES.md)
