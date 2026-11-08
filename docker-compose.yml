@@ -152,19 +152,58 @@ services:
         EOF
 
         garage server &
-        sleep 8
-
-        NODE_ID=$$(garage node id 2>/dev/null | head -n1 | cut -d@ -f1)
-        garage layout assign -z dc1 -c 1G $$NODE_ID || true
-        garage layout apply --version 1 || true
-
-        garage key import -n appkey --yes $$GARAGE_KEY_ID $$GARAGE_KEY_SECRET || true
         
-        # Criação e liberação dos 4 buckets da nova aplicação
-        for b in avatars equipamentos credenciais documentos; do
-          garage bucket create $$b || true
-          garage bucket allow --read --write --key $$GARAGE_KEY_ID $$b || true
+        # 1. Aguarda o daemon Garage inicializar e responder
+        echo "[Garage Init] Aguardando daemon Garage inicializar..."
+        for i in $$(seq 1 30); do
+          if garage status >/dev/null 2>&1; then
+            echo "[Garage Init] Daemon Garage ativo e respondendo!"
+            break
+          fi
+          sleep 1
         done
+
+        # 2. Configura layout do nó (se ainda não aplicado)
+        NODE_ID=$$(garage node id 2>/dev/null | head -n1 | cut -d@ -f1)
+        if [ -n "$$NODE_ID" ]; then
+          garage layout assign -z dc1 -c 1G "$$NODE_ID" || true
+          garage layout apply --version 1 || true
+        fi
+
+        # 3. Importa ou garante chave de acesso S3
+        if [ -n "$$GARAGE_KEY_ID" ] && [ -n "$$GARAGE_KEY_SECRET" ]; then
+          echo "[Garage Init] Importando chave de acesso informada: $$GARAGE_KEY_ID..."
+          garage key import -n appkey --yes "$$GARAGE_KEY_ID" "$$GARAGE_KEY_SECRET" || \
+          garage key import --yes "$$GARAGE_KEY_ID" "$$GARAGE_KEY_SECRET" || true
+        fi
+
+        # Se não existe nenhuma chave ainda, cria uma chave chamada appkey
+        if ! garage key list 2>/dev/null | grep -q "GK"; then
+          echo "[Garage Init] Nenhuma chave encontrada. Criando chave 'appkey'..."
+          garage key create appkey || true
+        fi
+
+        # 4. Criação e liberação dos 4 buckets da nova aplicação
+        KEYS=$$(garage key list 2>/dev/null | grep -E "^GK[0-9a-fA-F]+" | awk '{print $$1}')
+        for b in avatars equipamentos credenciais documentos; do
+          echo "[Garage Init] Configurando bucket: $$b..."
+          garage bucket create "$$b" || true
+          
+          if [ -n "$$GARAGE_KEY_ID" ]; then
+            garage bucket allow --read --write --owner "$$b" --key "$$GARAGE_KEY_ID" || true
+          fi
+          garage bucket allow --read --write --owner "$$b" --key appkey || true
+          for k in $$KEYS; do
+            garage bucket allow --read --write --owner "$$b" --key "$$k" || true
+          done
+        done
+
+        echo "=== [Garage Init] DIAGNÓSTICO DO STORAGE ==="
+        echo "Chaves cadastradas no Garage:"
+        garage key list || true
+        echo "Buckets cadastrados no Garage:"
+        garage bucket list || true
+        echo "============================================"
 
         wait
     expose:
