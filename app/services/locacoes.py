@@ -404,3 +404,4 @@ def realizar_vistoria_e_encerramento(
     finally:
         cursor.close()
         conn.close()
+

@@ -116,11 +116,17 @@ async def _emit_log(
     acao: str,
     detalhe: str = "",
     ip_origem: str = "",
+    categoria: str | None = None,
+    ator_role: str | None = None,
+    entidade: str | None = None,
+    entidade_id: str | int | None = None,
+    dados: dict | None = None,
 ):
     """
-    Dispara um evento de auditoria para o log-service via HTTP.
+    Dispara um evento de auditoria e telemetria para o log-service via HTTP.
+    Suporta persistência em múltiplos Redis Streams e Sorted Sets para timelines.
     Falhas são tratadas silenciosamente (try/except) para não
-    derrubar a ação principal do usuário — log é 'best effort'.
+    derrubar a ação principal do usuário — log é 'best effort' resiliente (DoD 3).
     """
     try:
         payload = {
@@ -130,6 +136,17 @@ async def _emit_log(
             "detalhe": detalhe,
             "ip_origem": ip_origem,
         }
+        if categoria:
+            payload["categoria"] = categoria
+        if ator_role:
+            payload["ator_role"] = ator_role
+        if entidade:
+            payload["entidade"] = entidade
+        if entidade_id is not None:
+            payload["entidade_id"] = str(entidade_id)
+        if dados:
+            payload["dados"] = dados
+
         async with httpx.AsyncClient(timeout=5.0) as client:
             await client.post(f"{LOG_SERVICE_URL}/logs", json=payload)
     except Exception as e:

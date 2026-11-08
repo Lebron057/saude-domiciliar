@@ -245,3 +245,4 @@ async def rota_vistoria_locacao(
         }
     except BusinessRuleError as be:
         raise HTTPException(status_code=400, detail=str(be))
+
